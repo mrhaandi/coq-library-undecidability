@@ -25,6 +25,8 @@ From Undecidability.SystemF.Util Require Import Facts poly_type_facts term_facts
 
 Require Import Undecidability.DiophantineConstraints.H10C.
 
+Require Import Undecidability.SystemF.Autosubst.eq_asimpl.
+
 Require Import ssreflect ssrbool ssrfun.
 
 Set Default Proof Using "Type".
@@ -635,8 +637,7 @@ Proof using h10cs.
       rewrite poly_type_norm. set f := (f in subst_poly_type f _).
       have Hf : forall x, f x = fold_right scons poly_var [poly_var (1 + n + zt); s] x.
       {
-        rewrite /f /funcomp. case; first done.
-        case; last done. by rewrite ?poly_type_norm -[RHS]ren_poly_type_id.
+        rewrite /f. by do ? (eq_asimpl2 || simpl).
       }
       under ext_poly_type => ? do rewrite Hf. set σ := (fold_right _ _ _).
       rewrite -?lock [Gamma0]lock [Ut']lock [St']lock [Pt']lock /= -?lock [Gamma0]lock.

@@ -749,6 +749,7 @@ SystemF/SysF_undec.v
 
 SystemF/Autosubst/unscoped.v
 SystemF/Autosubst/syntax.v
+SystemF/Autosubst/eq_asimpl.v
 
 SystemF/Util/Facts.v
 SystemF/Util/poly_type_facts.v

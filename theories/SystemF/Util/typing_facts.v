@@ -12,6 +12,8 @@ Require Import Undecidability.SystemF.SysF Undecidability.SystemF.Autosubst.synt
 Import UnscopedNotations.
 From Undecidability.SystemF.Util Require Import Facts poly_type_facts term_facts.
 
+Require Import Undecidability.SystemF.Autosubst.eq_asimpl.
+
 Require Import ssreflect ssrbool ssrfun.
 
 Set Default Goal Selector "!".
@@ -53,9 +55,7 @@ Proof.
     rewrite -/(map _ (_ :: _)). rewrite ?term_norm. by apply: IH.
   - move=> P IH s Gamma t σ /typingE [t'] [-> /IH] /=. 
     move=> /(_ σ) /typing_ty_app => /(_ (subst_poly_type σ s)).
-    congr typing.
-    rewrite ?poly_type_norm. apply: ext_poly_type => [[|x]]; first done.
-    by rewrite /= ?poly_type_norm /= subst_poly_type_poly_var.
+    congr typing. by do ? (eq_asimpl2 || simpl).
   - move=> P IH Gamma t σ /typingE [?] [-> /IH {}IH] /=. apply: typing_ty_abs.
     have := IH (poly_var 0 .: σ >> ren_poly_type S). congr typing. rewrite ?map_map.
     apply: map_ext. move=> ?. by rewrite ?poly_type_norm.
@@ -66,7 +66,7 @@ Lemma typing_ren_poly_type {Gamma P t} ξ : typing Gamma P t ->
   typing (map (ren_poly_type ξ) Gamma) (ren_term ξ id P) (ren_poly_type ξ t).
 Proof.
   move=> /(typing_subst_poly_type (ξ >> poly_var)). congr typing.
-  - apply: map_ext => ?. by rewrite -[RHS]subst_poly_type_poly_var ?poly_type_norm. 
+  - apply: map_ext => ?. by do ? (eq_asimpl2 || simpl). 
   - by rewrite -[RHS]subst_term_poly_var_var ?term_norm.
   - by rewrite -[RHS]subst_poly_type_poly_var ?poly_type_norm.
 Qed.
@@ -105,8 +105,7 @@ Proof.
     move=> ? ?. have /IH {}IH : length ts' = n by lia.
     move=> /IH {}IH. rewrite rev_unit many_ty_app_app /=.
     move: IH => /= => /typing_ty_app => /(_ s). congr typing.
-    rewrite ?poly_type_norm. apply: ext_poly_type => [[|x]]; first done.
-    by rewrite /= ?poly_type_norm /= subst_poly_type_poly_var.
+    by do ? (eq_asimpl2 || simpl).
 Qed.
 
 Lemma typing_ty_appI {Gamma P t s s'}: 
@@ -121,8 +120,7 @@ Proof.
   - move=> >. under map_ext => ? do rewrite /= ren_poly_type_id. by rewrite map_id.
   - move=> n IH > H /=. apply: typing_ty_abs. apply: IH.
     move: H. congr typing. rewrite map_map. apply: map_ext.
-    move=> ?. rewrite ?poly_type_norm. apply: extRen_poly_type. 
-    move=> ?. rewrite /funcomp /=. by lia.
+    by do ? (eq_asimpl2 || simpl).
 Qed.
 
 (* typing Gamma P t implies that every free term variable of P is typed in Gamma *)
@@ -232,15 +230,14 @@ Proof.
     constructor; first by eauto using normal_form, head_form.
     constructor; first by move=> /=; lia.
     move: HP => /typing_ty_app => /(_ (poly_var x)). congr typing.
-    rewrite -[RHS]subst_poly_type_poly_var ?poly_type_norm.
-    apply: ext_poly_type. by case.
+    by do ? (eq_asimpl2 || simpl).
   - by move=> > ? /typingE [?] [].
   - move=> {}P ? /typingE [?] [[<-]] + x. 
     move=> /(typing_ren_poly_type (x .: id)) HP.
     exists (ren_term (x .: id) id P). constructor; first by apply: normal_form_ren_term.
     rewrite term_size_ren_term /=. constructor; first by lia.
     move: HP. congr typing. rewrite map_map -[RHS]map_id. apply: map_ext.
-    move=> ?. by rewrite ?poly_type_norm ren_poly_type_id'.
+    by do ? (eq_asimpl2 || simpl).
 Qed.
 
 Lemma typing_many_app_arguments {Gamma P Qs t ss t'} :

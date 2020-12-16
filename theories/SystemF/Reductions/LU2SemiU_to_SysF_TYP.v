@@ -18,7 +18,8 @@
 
 Require Import List Lia.
 Import ListNotations.
-Require Import Undecidability.SystemF.SysF Undecidability.SystemF.Autosubst.syntax.
+Require Import Undecidability.SystemF.SysF Undecidability.SystemF.Autosubst.syntax Undecidability.SystemF.Autosubst.eq_asimpl.
+
 From Undecidability.SystemF.Util Require Import Facts poly_type_facts pure_term_facts term_facts typing_facts pure_typing_facts pure_typable_prenex.
 
 Require Undecidability.SemiUnification.SemiU.
@@ -146,7 +147,7 @@ Proof.
   move=> /= /pure_typingE' /= [?] [[?]]. subst.
   rewrite ren_poly_type_many_poly_abs /=.
   move=> /contains_poly_arrE [?] [?] [-> _].
-  rewrite ?poly_type_norm. by eexists.
+  eexists. by do ? (eq_asimpl2 || simpl). 
 Qed.
 
 (* construct semi-unification term from a polymorphic type pruning quantification *)
@@ -173,7 +174,8 @@ Lemma introduce_simple_substitutions {s t σ τ} :
   exists ψ, SU.substitute ψ (SU.substitute (funcomp prune σ) s) = SU.substitute (funcomp prune σ) t.
 Proof.
   move=> H. have [ψ Hψ] := substitute_prune_ex τ (subst_poly_type σ (SU_term_to_poly_type s)).
-  exists ψ. by rewrite ?substitute_prune Hψ -H poly_type_norm.
+  exists ψ. rewrite ?substitute_prune Hψ -H.
+  congr prune. by do ? (eq_asimpl2 || simpl).
 Qed.
 
 End InverseTransport.

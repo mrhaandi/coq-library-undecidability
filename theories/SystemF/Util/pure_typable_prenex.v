@@ -21,6 +21,8 @@ Require Import Undecidability.SystemF.SysF Undecidability.SystemF.Autosubst.synt
 Import UnscopedNotations.
 From Undecidability.SystemF.Util Require Import Facts poly_type_facts pure_term_facts term_facts typing_facts iipc2_facts pure_typing_facts.
 
+Require Import Undecidability.SystemF.Autosubst.eq_asimpl.
+
 Require Import ssreflect ssrbool ssrfun.
 
 Set Default Goal Selector "!".
@@ -48,7 +50,7 @@ Proof.
   move=> /(pure_typing_ren_poly_type (fun x => x - n)) /pure_typableI HN.
   constructor; first done.
   congr pure_typable: HN. rewrite map_map. apply: map_id' => ?.
-  rewrite ?poly_type_norm ren_poly_type_id' /=; by [|lia].
+  do ? (eq_asimpl2 || simpl). by lia.
 Qed.
 
 Lemma pure_typable_K'I {Gamma M N}: 
@@ -359,8 +361,8 @@ Proof.
       congr pure_typable. congr cons.
       * congr poly_arr; congr poly_var; by lia.
       * rewrite ?map_map. apply: map_ext => ?.
-        rewrite ?tidy_ren_poly_type tidy_tidy ?poly_type_norm /=.
-        apply: extRen_poly_type. by lia.
+        rewrite ?tidy_ren_poly_type tidy_tidy.
+        do ? (eq_asimpl2 || simpl). by lia.
     + rewrite ren_poly_type_many_poly_abs subst_poly_type_many_poly_abs /=.
       rewrite (svalP tidy_many_poly_abs). 
       by move: (sval _) => [? ?] /many_poly_abs_eqE' /= [].
@@ -490,6 +492,7 @@ Lemma contains_poly_abbaI {s t s' t'} : s' = s -> t' = t ->
 Proof.
   move=> -> ->. 
   apply: rt_trans; apply: rt_step; apply: contains_stepI; first done.
+  (* do ? (eq_asimpl2 || simpl). fails because of tail evar, needs special rules *)
   by rewrite /= ?poly_type_norm subst_poly_type_poly_var.
 Qed.
 
@@ -526,6 +529,7 @@ Proof.
         ** apply: (pure_typing_pure_app 2 (s := poly_arr (poly_var 0) (poly_var 0))).
            *** apply: (pure_typing_pure_var 0); first by reflexivity.
                apply: rt_trans; apply: rt_step; apply: contains_stepI; first done.
+               (* by do ? (eq_asimpl2 || simpl). produces wrong answer *)
                by rewrite /= ?poly_type_norm subst_poly_type_poly_var.
            *** apply: (pure_typing_pure_var 0); first by reflexivity.
                constructor. by apply: contains_stepI.
@@ -629,7 +633,8 @@ Proof.
   apply: (pure_typing_pure_app_simpleI (s := poly_var 0)).
   - have ->: map (ren_poly_type (Nat.add (n + 1))) Gamma =
       map (ren_poly_type S) (map (ren_poly_type (Nat.add n)) Gamma).
-    { rewrite ?map_map. apply: map_ext => ?. rewrite poly_type_norm /=. by apply: extRen_poly_type; lia. }
+    { rewrite ?map_map. apply: map_ext => ?. 
+      do ? (eq_asimpl2 || simpl). by lia. }
     apply: (pure_typing_many_poly_absE (n := 1)). apply: IH.
     move: HM. by rewrite -iter_plus.
   - apply: (pure_typing_pure_var 0); first by rewrite ?nth_error_map Hx /=.
@@ -649,8 +654,8 @@ Proof.
   move=> /(typing_ty_app (t := poly_var 0)) /= /(typing_app (Q := var x)).
   apply: unnest; first by apply: typing_var.
   move=> /typing_to_pure_typing /=. congr pure_typing.
-  rewrite poly_type_norm ren_as_subst_poly_type /=. apply: ext_poly_type.
-  case; first done. move=> ?. congr poly_var. by lia.
+  do ? (eq_asimpl2 || simpl). case: x0; first done.
+  move=> ?. congr poly_var. by lia.
 Qed.
 
 Lemma aux_pure_typing_N0 {s n Gamma e }: 
@@ -778,8 +783,8 @@ Proof.
     move=> /IH2 {}IH2 /IH1 {}IH1. rewrite -tidy_many_poly_abs_tidy /= -IH1 -IH2.
     rewrite tidy_many_poly_abs_le /=.
     { rewrite ?allfv_poly_type_ren_poly_type /=. constructor; apply: allfv_poly_type_TrueI; by lia. } 
-    rewrite IH1 IH2 ?tidy_tidy -IH1 -IH2 ?poly_type_norm /=.
-    congr poly_arr; apply: extRen_poly_type; by lia.
+    rewrite IH1 IH2 ?tidy_tidy -IH1 -IH2.
+    do ? (eq_asimpl2 || simpl); by lia.
   - done.
 Qed.
 
@@ -910,6 +915,6 @@ Proof.
     congr pure_typable. congr cons.
     + rewrite ren_poly_type_allfv_id; last done. by apply: allfv_poly_type_impl H4s.
     + rewrite ?map_map. apply: map_ext => ?.
-      rewrite ?tidy_ren_poly_type tidy_tidy ?poly_type_norm /=.
-      apply: ren_poly_type_id'. by lia.
+      rewrite ?tidy_ren_poly_type tidy_tidy.
+      do ? (eq_asimpl2 || simpl). by lia.
 Qed.

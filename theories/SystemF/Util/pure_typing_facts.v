@@ -16,6 +16,8 @@ Require Import Undecidability.SystemF.SysF Undecidability.SystemF.Autosubst.synt
 Import UnscopedNotations.
 From Undecidability.SystemF.Util Require Import Facts poly_type_facts pure_term_facts term_facts typing_facts iipc2_facts.
 
+Require Import Undecidability.SystemF.Autosubst.eq_asimpl.
+
 Require Import ssreflect ssrbool ssrfun.
 
 Set Default Goal Selector "!".
@@ -114,8 +116,8 @@ Proof.
   - move=> > [] > /=. apply: rt_step. rewrite poly_type_norm /=.
     have := contains_step_subst.
     evar (s' : poly_type) => /(_ s'). evar (t' : poly_type) => /(_ t').
-    congr contains_step. subst t'. rewrite poly_type_norm /=.
-    apply: ext_poly_type. subst s'. by case.
+    congr contains_step. subst t'.
+    do ? (eq_asimpl2 || simpl). by subst s'.
   - move=> ?. by apply: rt_refl.
   - move=> *. apply: rt_trans; by eassumption.
 Qed.
@@ -126,9 +128,8 @@ Proof.
   - move=> > [] > /=. apply: rt_step. rewrite poly_type_norm /=.
     have := contains_step_subst.
     evar (s' : poly_type) => /(_ s'). evar (t' : poly_type) => /(_ t').
-    congr contains_step. subst t'. rewrite poly_type_norm /=.
-    apply: ext_poly_type. subst s'. case; first done.
-    move=> ?. by rewrite /= poly_type_norm /= subst_poly_type_poly_var.
+    congr contains_step. subst t'.
+    do ? (eq_asimpl2 || simpl). by subst s'.
   - move=> ?. by apply: rt_refl.
   - move=> *. apply: rt_trans; by eassumption.
 Qed.
@@ -137,7 +138,7 @@ Lemma contains_ren_poly_type_addLR {n s t} : contains (ren_poly_type (Nat.add n)
   contains s (ren_poly_type (fun x => x - n) t).
 Proof.
   move=> /(contains_ren_poly_typeI (fun x => x - n)). congr contains.
-  rewrite poly_type_norm /= ren_poly_type_id'; by [|lia].
+  do ? (eq_asimpl2 || simpl). by lia.
 Qed.
 
 Lemma containsE {t t'} : contains t t' ->
@@ -215,7 +216,7 @@ Proof.
     (map (ren_poly_type (Nat.add n')) (map (ren_poly_type (Nat.add n)) Gamma)) =
     map (ren_poly_type (Nat.add (n + n'))) Gamma.
   { move=> *. rewrite ?map_map. apply: map_ext => ?.
-    rewrite poly_type_norm /=. apply: extRen_poly_type. by lia. }
+    do ? (eq_asimpl2 || simpl). by lia. }
   case: M.
   - move=> x /pure_typingE [n'] [?] [?] [+] [HC] ->.
     rewrite Hnn' many_poly_abs_many_poly_abs => ?. 
@@ -329,8 +330,8 @@ Proof.
     move=> /typing_ty_app => /(_ (poly_var 0)). subst M.
     rewrite ?poly_type_norm subst_poly_type_poly_var'; first by case.
     move=> /typing_to_pure_typing /= /IH. congr pure_typing.
-    rewrite ?map_map. apply: map_ext => ?. rewrite ?poly_type_norm /=.
-    apply: extRen_poly_type. by lia.
+    rewrite ?map_map. apply: map_ext => ?.
+    do ? (eq_asimpl2 || simpl). by lia.
 Qed.
 
 (* constructs a ∀I (cf. λI) type expression *)
@@ -380,8 +381,8 @@ Proof.
     apply: ext_subst_poly_type_allfv_poly_type. rewrite allfv_poly_type_tidy.
     apply: allfv_poly_type_impl H. case; first done.
     move=> ? _ /=. by rewrite tidy_ren_poly_type ?poly_type_norm ren_poly_type_id.
-  - move=> _ /=. rewrite IH /=. congr poly_abs. apply: ext_poly_type. case; first done.
-    move=> ?. by rewrite /= tidy_ren_poly_type.
+  - move=> _ /=. rewrite IH /=.
+    do ? (eq_asimpl2 || simpl). by rewrite tidy_ren_poly_type.
 Qed.
 
 Lemma contains_tidyI {t t'} : contains t t' -> contains (tidy t) (tidy t').
@@ -395,7 +396,7 @@ Proof.
   - apply: rt_trans; last by eassumption.
     apply: rt_step. rewrite tidy_subst_poly_type.
     have := contains_step_subst (s := tidy s'') (t := tidy t''). congr contains_step.
-    apply: ext_poly_type. by case.
+    by do ? (eq_asimpl2 || simpl).
 Qed.
 
 (* introduces canonical type derivations (cf. Wells) *)
@@ -418,7 +419,7 @@ Proof.
     + move=> /(typing_ren_poly_type (0 .: id)) => H.
       exists (ren_term (0 .: id) id P'). constructor; first by rewrite erase_ren_term_id.
       congr typing: H. rewrite ?map_map. apply: map_ext => ?.
-      by rewrite tidy_ren_poly_type ?poly_type_norm /= ren_poly_type_id.
+      rewrite tidy_ren_poly_type. by do ? (eq_asimpl2 || simpl).
     + move=> H. exists (ty_abs P'). constructor; first done.
       apply: typing_ty_abs. congr typing: H. rewrite ?map_map.
       apply: map_ext => ?. by apply: tidy_ren_poly_type.
@@ -492,8 +493,7 @@ Proof.
     move=> n' ? [->]. exists (r :: ts) => /=.
     constructor; first by lia.
     have ->: n - S (length ts) = n' by lia.
-    rewrite ?poly_type_norm. apply: ext_poly_type. case; first done.
-    move=> x /=. by rewrite ?poly_type_norm /= subst_poly_type_poly_var.
+    by do ? (eq_asimpl2 || simpl).
 Qed.
 
 Lemma contains_poly_arrE {n s1 t1 s2 t2} : contains (many_poly_abs n (poly_arr s1 t1)) (poly_arr s2 t2) -> 
@@ -723,11 +723,11 @@ Proof.
   - move=> n > /(pure_typing_ren_poly_type (fun x => x - n)) H1.
     move=> /(pure_typing_ren_poly_type (fun x => x - n)) H2 _.
     move: H1 H2. rewrite ?map_map. rewrite map_id'.
-    { move=> ?. rewrite poly_type_norm ren_poly_type_id' /=; by [|lia]. }
+    { do ? (eq_asimpl2 || simpl). by lia. }
     move=> ? ?. do 2 eexists. constructor; by eassumption.
   - move=> n > /(pure_typing_ren_poly_type (fun x => x - n)) /=.
     rewrite ?map_map map_id'.
-    { move=> ?. rewrite poly_type_norm ren_poly_type_id' /=; by [|lia]. }
+    { do ? (eq_asimpl2 || simpl). by lia. }
     move=> /pure_typableI ?. eexists. by eassumption.
 Qed.
 
