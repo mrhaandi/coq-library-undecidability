@@ -22,7 +22,7 @@ Definition validEnv A := forall a, a el A -> validComp a (*/\ lamComp a)*).
 
 Definition validEnv' A := forall a, a el A -> closed a.
 
-Hint Unfold validEnv validEnv' : core.
+#[export] Hint Unfold validEnv validEnv' : core.
 
 Lemma validEnv_cons a A : validEnv (a::A) <-> ((validComp a) /\ validEnv A).
 Proof.

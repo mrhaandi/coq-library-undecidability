@@ -344,7 +344,7 @@ Proof.
   Lproc.
 Qed.
 
-Hint Unfold Cn : cbv.
+#[export] Hint Unfold Cn : cbv.
 Hint Rewrite Cn_closed : cbv.
 
 Lemma Cn_correct n : Cn (enc n) == penc(c n).

@@ -513,7 +513,7 @@ Qed.
 
 Definition eval s t := s >* t /\ lambda t.
 Notation "s '⇓' t" := (eval s t) (at level 51).
-Hint Unfold eval : core.
+#[export] Hint Unfold eval : core.
 
 Lemma eval_unique s v1 v2 :
   s ⇓ v1 -> s ⇓ v2 -> v1 = v2.

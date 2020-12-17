@@ -30,7 +30,7 @@ Qed.
 
 #[export] Hint Resolve S'_proc : LProc.
 
-Hint Unfold S' : cbv.
+#[export] Hint Unfold S' : cbv.
 (*
 Lemma S'_rec n t : S' (enc n) F (tenc t) ==  (F (enc n) (tenc t)) K (lam ( S' (Succ (enc n)) F (tenc t))) I.
 Proof.
