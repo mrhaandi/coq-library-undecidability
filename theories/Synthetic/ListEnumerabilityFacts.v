@@ -269,7 +269,7 @@ Proof.
 Defined.
 Arguments L_T _ {_ _} _, {_ _ _}.
 
-Hint Unfold L_T : core.
+#[export] Hint Unfold L_T : core.
 #[export] Hint Resolve cumul_In : core.
 
 Existing Class list_enumerator__T'.
@@ -302,7 +302,7 @@ Defined.
 
 (* Compatibility  *)
 
-Hint Unfold enumerable list_enumerable : core.
+#[export] Hint Unfold enumerable list_enumerable : core.
 
 #[export] Hint Resolve enumerable_list_enumerable
      list_enumerable_enumerable : core.

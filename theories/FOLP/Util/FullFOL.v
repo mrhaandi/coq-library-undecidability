@@ -27,7 +27,7 @@ Derive Signature for vector.
 
 Ltac capply H := eapply H; try eassumption.
 Ltac comp := repeat (progress (cbn in *; autounfold in *; asimpl in *)).
-Hint Unfold idsRen : core.
+#[export] Hint Unfold idsRen : core.
 
 Ltac resolve_existT :=
   match goal with

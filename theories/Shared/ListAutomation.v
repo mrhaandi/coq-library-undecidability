@@ -168,7 +168,7 @@ Qed.
 
 Definition equi X (A B : list X) : Prop := incl A B /\ incl B A.
 Local Notation "A === B" := (equi A B) (at level 70).
-Hint Unfold equi : core.
+#[export] Hint Unfold equi : core.
 
 Instance equi_Equivalence X : 
   Equivalence (@equi X).

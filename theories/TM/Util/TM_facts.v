@@ -226,7 +226,7 @@ Hint Rewrite tape_move_right_left using eauto : tape.
 Hint Rewrite tape_move_left_right using eauto : tape.
 
 Arguments current_chars : simpl never.
-Hint Unfold current_chars : tape.
+#[export] Hint Unfold current_chars : tape.
 
 
 
@@ -384,7 +384,7 @@ Section MirrorTape.
 End MirrorTape.
 
 Arguments mirror_tapes : simpl never.
-Hint Unfold mirror_tapes : tape.
+#[export] Hint Unfold mirror_tapes : tape.
 
 Hint Rewrite mirror_tape_left : tape.
 Hint Rewrite mirror_tape_right : tape.
@@ -610,7 +610,7 @@ Hint Rewrite mapTape_right      : tape.
 Hint Rewrite mapTape_move_left  : tape.
 Hint Rewrite mapTape_move_right : tape.
 (* Hint Rewrite mapTapes_nth       : tape. *)
-Hint Unfold mapTapes : tape.
+#[export] Hint Unfold mapTapes : tape.
 
 
 Lemma mapTape_mapTape (sig tau gamma : Type) (f : sig -> tau) (g : tau -> gamma) (t : tape sig) :

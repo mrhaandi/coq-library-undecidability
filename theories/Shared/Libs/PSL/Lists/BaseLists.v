@@ -6,7 +6,7 @@ Notation "A <<= B" := (incl A B) (at level 70).
 Notation "| A |" := (length A) (at level 65).
 Definition equi X (A B : list X) : Prop := incl A B /\ incl B A.
 Notation "A === B" := (equi A B) (at level 70).
-Hint Unfold equi : core.
+#[export] Hint Unfold equi : core.
 
 Hint Extern 4 => 
 match goal with

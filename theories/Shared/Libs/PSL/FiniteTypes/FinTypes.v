@@ -31,8 +31,8 @@ Canonical Structure finType_CS (X : Type) {p : eq_dec X} {class : finTypeC (EqTy
 Arguments finType_CS (X) {_ _}.
 
 Definition elem (F: finType) := @enum (type F) (class F).
-Hint Unfold elem : core.
-Hint Unfold class : core.
+#[export] Hint Unfold elem : core.
+#[export] Hint Unfold class : core.
 
 Lemma elem_spec (X: finType) (x:X) : x el (elem X).
 Proof.
