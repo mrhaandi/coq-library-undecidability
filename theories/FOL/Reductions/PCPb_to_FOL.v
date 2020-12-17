@@ -251,7 +251,7 @@ Proof.
   - intros [] []. now left.
 Qed.
 
-Hint Resolve stack_enum form_discrete : core.
+Local Hint Resolve stack_enum form_discrete : core.
 
 Definition UA :=
   ~ enumerable (complement PCPb).
