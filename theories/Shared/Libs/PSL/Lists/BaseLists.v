@@ -8,7 +8,7 @@ Definition equi X (A B : list X) : Prop := incl A B /\ incl B A.
 Notation "A === B" := (equi A B) (at level 70).
 #[export] Hint Unfold equi : core.
 
-Hint Extern 4 => 
+#[export] Hint Extern 4 => 
 match goal with
 |[ H: ?x el nil |- _ ] => destruct H
 end : core.

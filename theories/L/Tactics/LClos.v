@@ -16,7 +16,7 @@ Inductive validComp : Comp -> Prop :=
 | validCompClos (s : term) (A : list Comp) :
      (forall a, a el A -> validComp a) -> (forall a, a el A -> lamComp a) -> bound (length A) s -> validComp (CompClos s A).
 
-Hint Constructors Comp lamComp validComp : core.
+#[export] Hint Constructors Comp lamComp validComp : core.
 
 Definition validEnv A := forall a, a el A -> validComp a (*/\ lamComp a)*).
 
@@ -171,7 +171,7 @@ Ltac inv_CompStep :=
     | H : (CompClos _ _) >(_) CompApp _ _ |- _ => inv H
   end.
 
-Hint Constructors CPow : core.
+#[export] Hint Constructors CPow : core.
 
 Lemma CPow_congL n s s' t :
   s >[(n)] s' ->  s t >[(n)] s' t.
@@ -384,7 +384,7 @@ Inductive reduceC : Comp -> Comp -> Prop :=
   | redC s t: deClos s >* deClos t -> s =[]> t
 where "s '=[]>' t" := (reduceC s t).
 
-Hint Constructors reduceC.
+#[export] Hint Constructors reduceC.
 
 Lemma reduceC_if s t : s =[]> t -> deClos s >* deClos t.
 Proof.
@@ -423,7 +423,7 @@ Inductive equivC : Comp -> Comp -> Prop :=
   | eqC s t: deClos s == deClos t -> s =[]= t
 where "s '=[]=' t" := (equivC s t).
 
-Hint Constructors equivC.
+#[export] Hint Constructors equivC.
 
 Lemma equivC_if s t : s =[]= t -> deClos s == deClos t.
 Proof.

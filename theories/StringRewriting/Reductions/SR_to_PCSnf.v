@@ -4,6 +4,7 @@ Import ListNotations.
 Require Import Undecidability.StringRewriting.PCSnf.
 Require Import Undecidability.StringRewriting.SR.
 Require Import Undecidability.StringRewriting.Util.Definitions.
+Require Import Undecidability.Shared.ListAutomation.
 
 Set Default Proof Using "Type".
 

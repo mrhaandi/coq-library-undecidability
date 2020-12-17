@@ -53,8 +53,8 @@ Ltac find_Lrewrite_lemma :=
   end.
 
 Create HintDb Lrewrite discriminated.
-Hint Constants Opaque : Lrewrite.
-Hint Variables Opaque : Lrewrite.
+#[export] Hint Constants Opaque : Lrewrite.
+#[export] Hint Variables Opaque : Lrewrite.
 
 #[export] Hint Extern 0 (proc _) => solve [Lproc] : Lrewrite.
 #[export] Hint Extern 0 (lambda _) => solve [Lproc] : Lrewrite.

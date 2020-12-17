@@ -14,7 +14,7 @@ Global Unset Printing Records.
 Global Unset Printing Implicit Defensive.
 Global Set Regular Subst Tactic.
 
-Hint Extern 4 => exact _ : core.  (* makes auto use type class inference *)
+#[export] Hint Extern 4 => exact _ : core.  (* makes auto use type class inference *)
 
 (* De Morgan laws *)
 
@@ -91,5 +91,5 @@ Ltac simpl_congruence :=
   | [ H : false = true |- _] => congruence
   end.
 
-Hint Extern 1 => simpl_coerce : core.
-Hint Extern 1 => simpl_congruence : core.
+#[export] Hint Extern 1 => simpl_coerce : core.
+#[export] Hint Extern 1 => simpl_congruence : core.
