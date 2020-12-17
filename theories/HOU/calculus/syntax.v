@@ -57,7 +57,7 @@ Ltac atom :=
   | [ |- isAtom _] => cbn in *; intuition
   end.    
 
-Hint Extern 4 => syn : core. 
+#[export] Hint Extern 4 => syn : core. 
 
 
 

@@ -69,7 +69,7 @@ Global Arguments extCorrect {X} ty x {computable} : simpl never.
 Global Arguments ext {X} {ty} x {computable} : simpl never.
 
 Hint Mode computable + - +: typeclass_instances. (* treat argument as input and force evar-freeness*)
-Hint Extern 4 (@extracted ?t ?f) => let ty := constr:(_ : TT t) in notypeclasses refine (ext (ty:=ty) f) : typeclass_instances.
+#[export] Hint Extern 4 (@extracted ?t ?f) => let ty := constr:(_ : TT t) in notypeclasses refine (ext (ty:=ty) f) : typeclass_instances.
 
 Typeclasses Opaque ext.
 

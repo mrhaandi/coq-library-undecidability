@@ -5,7 +5,7 @@ Import ListNotations.
 
 Definition cumulative {X} (L: nat -> list X) :=
   forall n, exists A, L (S n) = L n ++ A.
-Hint Extern 0 (cumulative _) => intros ?; cbn; eauto : core.
+#[export] Hint Extern 0 (cumulative _) => intros ?; cbn; eauto : core.
 
 Lemma cum_ge {X} {L: nat -> list X} {n m} :
   cumulative L -> m >= n -> exists A, L m = L n ++ A.
@@ -221,7 +221,7 @@ Proof.
   eexists. now eapply enumerator__T_list.
 Qed.
 
-Hint Extern 4 => match goal with [H : list_enumerator _ ?p |- ?p _ ] => eapply H end : core.
+#[export] Hint Extern 4 => match goal with [H : list_enumerator _ ?p |- ?p _ ] => eapply H end : core.
 
 Lemma enumerable_conj X (p q : X -> Prop) :
   discrete X -> enumerable p -> enumerable q -> enumerable (fun x => p x /\ q x).

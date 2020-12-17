@@ -307,7 +307,7 @@ Section ClosureRelations.
 
 End ClosureRelations.
 
-Hint Extern 4 => eapply subrel_unfold; [ typeclasses eauto |] : core. 
+#[export] Hint Extern 4 => eapply subrel_unfold; [ typeclasses eauto |] : core. 
 
 
 

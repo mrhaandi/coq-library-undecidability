@@ -276,7 +276,7 @@ Proof. eapply Consequence_post. apply Triple_True. auto. Qed.
 
 
 
-Hint Extern 4 =>
+#[export] Hint Extern 4 =>
      lazymatch goal with
      | [H : _ ≃≃ SpecFalse |- _] => exfalso; now eapply tspec_not_SpecFalse in H
      | [H : _ ≃≃ withSpace SpecFalse _ |- _] => exfalso; now eapply tspec_not_SpecFalse_withSpace in H

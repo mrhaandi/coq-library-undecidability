@@ -341,7 +341,7 @@ Hint Rewrite map_id map_rev map_nil map_cons map_app : listdb.
 #[export] Hint Resolve in_map : listdb.
 Hint Rewrite app_length map_length rev_length : listdb.
 
-Hint Extern 4 => 
+#[export] Hint Extern 4 => 
   match goal with
   |[ H: ?x ∈ nil |- _ ] => destruct H
   end : core.

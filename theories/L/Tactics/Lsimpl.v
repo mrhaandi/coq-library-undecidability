@@ -130,8 +130,8 @@ Qed.
 
 Hint Resolve I_proc K_proc omega_proc Omega_closed: LProc.
 
-Hint Extern 0 (I >(_) _)=> unfold I;reflexivity : Lrewrite.
-Hint Extern 0 (K >(_) _)=> unfold K;reflexivity : Lrewrite.
+#[export] Hint Extern 0 (I >(_) _)=> unfold I;reflexivity : Lrewrite.
+#[export] Hint Extern 0 (K >(_) _)=> unfold K;reflexivity : Lrewrite.
 
 
 Lemma Omega_diverge t: ~ eval Omega t.
