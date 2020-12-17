@@ -102,7 +102,7 @@ Proof.
     eapply el_elAt in HIn; eauto. destruct HIn. eapply elAt_el in H. eapply el_pos in H. destruct H. rewrite H in *; congruence. 
 Qed.
 
-Hint Unfold left_inverse injective right_inverse surjective : core.
+#[export] Hint Unfold left_inverse injective right_inverse surjective : core.
 
 Lemma disjoint_symm X (A B : list X) : disjoint A B <-> disjoint B A.
 Proof.
@@ -187,7 +187,7 @@ Proof.
     lia.
 Qed.
 
-Hint Unfold left_inverse injective surjective g g_inv : core.
+#[export] Hint Unfold left_inverse injective surjective g g_inv : core.
 
 Lemma g_T : bijective g.
 Proof. 

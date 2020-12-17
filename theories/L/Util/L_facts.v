@@ -385,7 +385,7 @@ Inductive equiv : term -> term -> Prop :=
   | eqTrans s t u: s == t -> t == u -> s == u
 where "s '==' t" := (equiv s t).
 
-Hint Immediate eqRef : core.
+#[export] Hint Immediate eqRef : core.
 
 
 (* Properties of the equivalence relation *)
