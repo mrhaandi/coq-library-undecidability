@@ -279,5 +279,5 @@ Notation normal := (Normal step).
 
 #[export] Hint Constructors step star : core.
 
-Hint Resolve normal_var normal_const normal_lam_intro normal_app_intro : core.
-Hint Resolve head_atom : core. 
+#[export] Hint Resolve normal_var normal_const normal_lam_intro normal_app_intro : core.
+#[export] Hint Resolve head_atom : core. 

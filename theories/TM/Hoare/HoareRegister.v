@@ -158,7 +158,7 @@ Arguments Custom {sig}.
 Arguments Void {sig}.
 Arguments Void_size {sig}.
 Arguments dummy_sizes : simpl never.
-Hint Resolve tspec_single_Contains_size_Contains : core.
+#[export] Hint Resolve tspec_single_Contains_size_Contains : core.
 
 
 Declare Scope spec_scope.

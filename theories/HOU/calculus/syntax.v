@@ -126,7 +126,7 @@ Section ApplicativeHead.
 
 End ApplicativeHead.
 
-Hint Resolve atom_var var_head atom_head : core.
+#[export] Hint Resolve atom_var var_head atom_head : core.
 
 
 (* ** Type Functions *)
@@ -285,6 +285,6 @@ End FreeVariables.
 
 
 #[export] Hint Constructors varof : core.
-Hint Resolve varof_vars vars_varof : core.
+#[export] Hint Resolve varof_vars vars_varof : core.
         
 

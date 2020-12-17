@@ -404,8 +404,8 @@ Infix "⊑" := subset_T (at level 20).
 Infix "∈" := contains (at level 70).
 Infix "⋄" := extend (at level 20).
 
-Hint Resolve contains_nil contains_cons contains_cons2 contains_app : contains_theory.
-Hint Resolve contains_extend1 contains_extend2 contains_extend3 : contains_theory.
+#[export] Hint Resolve contains_nil contains_cons contains_cons2 contains_app : contains_theory.
+#[export] Hint Resolve contains_extend1 contains_extend2 contains_extend3 : contains_theory.
 Ltac use_theory A := exists A; split; [eauto 15 with contains_theory|].
 
 (* **** Enumerability *)

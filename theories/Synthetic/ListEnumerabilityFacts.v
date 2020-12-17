@@ -156,7 +156,7 @@ Proof.
   intros H. eapply to_cumul_spec. eauto.
 Qed.
 
-Hint Resolve cumul_In In_cumul : core.
+#[export] Hint Resolve cumul_In In_cumul : core.
 
 Lemma list_enumerator_to_cumul {X} {p : X -> Prop} {L} :
   list_enumerator L p -> list_enumerator (to_cumul L) p. 
@@ -270,7 +270,7 @@ Defined.
 Arguments L_T _ {_ _} _, {_ _ _}.
 
 Hint Unfold L_T : core.
-Hint Resolve cumul_In : core.
+#[export] Hint Resolve cumul_In : core.
 
 Existing Class list_enumerator__T'.
 
@@ -304,7 +304,7 @@ Defined.
 
 Hint Unfold enumerable list_enumerable : core.
 
-Hint Resolve enumerable_list_enumerable
+#[export] Hint Resolve enumerable_list_enumerable
      list_enumerable_enumerable : core.
 
 Lemma enumerable_enum {X} {p : X -> Prop} :

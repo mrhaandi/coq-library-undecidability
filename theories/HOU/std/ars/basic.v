@@ -312,5 +312,5 @@ Hint Extern 4 => eapply subrel_unfold; [ typeclasses eauto |] : core.
 
 
 #[export] Hint Constructors star multiple counted : core.
-Hint Resolve star_trans multiple_trans counted_trans star_exp
+#[export] Hint Resolve star_trans multiple_trans counted_trans star_exp
      multiple_exp counted_exp equiv_join : core.

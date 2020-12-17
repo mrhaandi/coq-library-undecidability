@@ -303,7 +303,7 @@ Proof.
   Lproc.
 Qed.
 
-Hint Resolve CC_closed CC_lam :cbv.
+#[export] Hint Resolve CC_closed CC_lam :cbv.
 
 
 Lemma CC_rec_0 : CC (enc 0) == lenc penc [(0,0)].
