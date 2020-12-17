@@ -4,7 +4,7 @@ From Undecidability.L Require Export L.
 
 Require Import Lia.
 
-Hint Constructors ARS.star : cbv.
+#[export] Hint Constructors ARS.star : cbv.
 
 (* * The call-by-value lambda calculus L *)
 
@@ -216,7 +216,7 @@ Inductive step : term -> term -> Prop :=
 | stepAppL s s' t  : s ≻ s' -> app s t ≻ app s' t
 where "s '≻' t" := (step s t).
 
-Hint Constructors step : core.
+#[export] Hint Constructors step : core.
 
 Ltac inv_step :=
   match goal with

@@ -397,7 +397,7 @@ Proof.
     exists (b :: B). split. 1: auto. intros ? []; subst; auto.
 Qed.
 
-Hint Constructors vec_in : core.
+Local Hint Constructors vec_in : core.
 
 Infix "⊏" := contains_L (at level 20).
 Infix "⊑" := subset_T (at level 20).

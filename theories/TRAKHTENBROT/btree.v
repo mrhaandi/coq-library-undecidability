@@ -89,7 +89,7 @@ Inductive bt_equiv : bt -> bt -> Prop :=
                                    ->   s⪧t ≈ s'⪧t'
 where "s ≈ t" := (bt_equiv s t).
 
-Hint Constructors bt_equiv : core.
+#[export] Hint Constructors bt_equiv : core.
 
 Local Notation "s ≉ t" := (~ s ≈ t).
 Notation bte_refl := in_bte_refl.

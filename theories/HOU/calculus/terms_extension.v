@@ -816,8 +816,8 @@ End TermsExtension.
 
 
 
-Hint Constructors listtyping : core. 
-Hint Constructors orderlisttyping : core. 
+#[export] Hint Constructors listtyping : core. 
+#[export] Hint Constructors orderlisttyping : core. 
 Hint Rewrite ord'_app ord_Arr ord_repeated : simplify.
 Hint Rewrite ord_Arr : simplify.
 Hint Resolve 

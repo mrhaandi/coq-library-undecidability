@@ -175,7 +175,7 @@ End ListRelations.
 
 
 
-Hint Constructors lstep : core.
+#[export] Hint Constructors lstep : core.
 
 Hint Resolve
      lstep_normal_nil

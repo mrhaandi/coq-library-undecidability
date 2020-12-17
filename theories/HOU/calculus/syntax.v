@@ -284,7 +284,7 @@ Section FreeVariables.
 End FreeVariables.
 
 
-Hint Constructors varof : core.
+#[export] Hint Constructors varof : core.
 Hint Resolve varof_vars vars_varof : core.
         
 
