@@ -39,7 +39,7 @@ Definition evalTime X ty x evalTime (computableTime : @computableTime X ty x eva
 Global Arguments evalTime {X} {ty} x {evalTime computableTime}.
 
 #[export] Hint Extern 3 (@extracted ?t ?f) => let ty := constr:(_ : TT t) in notypeclasses refine (extT (ty:=ty) f) : typeclass_instances.
-Hint Mode computableTime + - + -: typeclass_instances. (* treat argument as input and force evar-freeness*)
+#[export] Hint Mode computableTime + - + -: typeclass_instances. (* treat argument as input and force evar-freeness*)
 
 (* A Notation to allow inference of the TT parameter for function types. Coq checks that functions only appear at positions where functions are allowed before it inferes holes, so t complains that f "is a product while it is expected to be '@timeComplexity (forall _ : _, _) ?ty'". *)
 Notation "'computableTime'' f" := (@computableTime _ ltac:(let t:=type of f in refine (_ : TT t);exact _) f) (at level 0,only parsing).

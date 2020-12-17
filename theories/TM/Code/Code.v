@@ -13,15 +13,15 @@ Class codable (sig: Type) (X: Type) := {
 Arguments encode {sig} {X} {_}.
 
 (* either the type or the alphabet must be know at head: *)
-Hint Mode codable - ! : typeclass_instances.
-Hint Mode codable ! - : typeclass_instances.
+#[export] Hint Mode codable - ! : typeclass_instances.
+#[export] Hint Mode codable ! - : typeclass_instances.
 
 (* right side must be fully known, left side at head *)
-Hint Mode Retract ! + : typeclass_instances.
+#[export] Hint Mode Retract ! + : typeclass_instances.
 
 (* (* Both sides must be known at head. *)
-Hint Mode Retract ! - : typeclass_instances.
-Hint Mode Retract - ! : typeclass_instances. *)
+#[export] Hint Mode Retract ! - : typeclass_instances.
+#[export] Hint Mode Retract - ! : typeclass_instances. *)
 
 #[export] Hint Extern 4 (codable (FinType(EqType ?sigX)) ?X) => cbn : typeclass_instances.
 
