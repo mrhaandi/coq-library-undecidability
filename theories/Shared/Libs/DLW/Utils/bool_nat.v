@@ -57,7 +57,7 @@ Proof. intros H; apply binary_le_le in H; lia. Qed.
 Fact binary_le_zero n : 0 ≲ n.
 Proof. constructor. Qed.
 
-Hint Resolve binary_le_zero binary_le_refl : core.
+#[export] Hint Resolve binary_le_zero binary_le_refl : core.
 
 Local Notation "⟘" := false.
 Local Notation "⟙" := true.

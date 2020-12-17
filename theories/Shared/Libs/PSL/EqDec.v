@@ -38,7 +38,7 @@ Proof.
   destruct d as [A|A]; cbn; intuition congruence.
 Qed.
 
-Hint Resolve Dec_auto Dec_auto_not : core.
+#[export] Hint Resolve Dec_auto Dec_auto_not : core.
 Hint Extern 4 =>  (* Improves type class inference *)
 match goal with
   | [  |- dec ((fun _ => _) _) ] => cbn

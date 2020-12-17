@@ -39,14 +39,14 @@ Proof.
   apply countIn.  pose proof (enum_ok x) as H. unfold elem. lia. 
 Qed.
 
-Hint Resolve elem_spec : core.
-Hint Resolve enum_ok : core.
+#[export] Hint Resolve elem_spec : core.
+#[export] Hint Resolve enum_ok : core.
 
 Lemma allSub (X: finType) (A:list X) : A <<= elem X.
 Proof.
   intros x _. apply elem_spec.
 Qed.
-Hint Resolve allSub : core.
+#[export] Hint Resolve allSub : core.
 
 (* A properties that hold on every element of (elem X) hold for every element of the finType X *)
 Theorem Equivalence_property_all (X: finType) (p: X -> Prop) :

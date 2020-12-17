@@ -59,8 +59,8 @@ Proof.
 Qed.
 
 
-Hint Resolve bool_Prop_true bool_Prop_false : core.
-Hint Resolve bool_Prop_true' bool_Prop_false' : core.
+#[export] Hint Resolve bool_Prop_true bool_Prop_false : core.
+#[export] Hint Resolve bool_Prop_true' bool_Prop_false' : core.
 
 
 Definition bool2nat := fun b : bool => if b then 1 else 0.
@@ -72,7 +72,7 @@ Proof. intros; cbv in *. destruct b. auto. congruence. Qed.
 Lemma nat_bool (b : bool) :
   b = nat2bool 1 -> b.
 Proof. intros; cbv in *. destruct b. auto. congruence. Qed.
-Hint Resolve bool_nat nat_bool : core.
+#[export] Hint Resolve bool_nat nat_bool : core.
 
 Ltac simpl_coerce :=
   match goal with

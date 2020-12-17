@@ -605,10 +605,10 @@ Set Implicit Arguments.
 
 (* End lb.
 
-Hint Resolve leb_refl leb_trans leb_strict.
-Hint Resolve lb_mask_refl lb_mask_trans.
-Hint Resolve in_lb_mask_0 lb_mask_refl lb_mask_equiv_refl.
+#[export] Hint Resolve leb_refl leb_trans leb_strict.
+#[export] Hint Resolve lb_mask_refl lb_mask_trans.
+#[export] Hint Resolve in_lb_mask_0 lb_mask_refl lb_mask_equiv_refl.
 Local Hint Constructors lb_mask lb_ortho.
-Hint Resolve lb_mask_equiv_refl.
-Hint Resolve lb_join_inc lb_meet_dec_left lb_meet_dec_right.
+#[export] Hint Resolve lb_mask_equiv_refl.
+#[export] Hint Resolve lb_join_inc lb_meet_dec_left lb_meet_dec_right.
 *)
