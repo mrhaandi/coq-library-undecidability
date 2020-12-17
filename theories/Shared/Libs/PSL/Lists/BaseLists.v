@@ -108,7 +108,7 @@ We use the following lemmas from Coq's standard library List.
 - [in_map_iff :  y el map f A <-> exists x, f x = y /\ x el A]
 *)
 
-Hint Resolve in_eq in_nil in_cons in_or_app : core.
+#[export] Hint Resolve in_eq in_nil in_cons in_or_app : core.
 
 Section Membership.
   Variable X : Type.
@@ -194,7 +194,7 @@ Section Membership.
 
 End Membership.
 
-Hint Resolve disjoint_nil disjoint_nil' : core.
+#[export] Hint Resolve disjoint_nil disjoint_nil' : core.
 
 (* *** Inclusion
 
@@ -207,14 +207,14 @@ We use the following lemmas from Coq's standard library List.
 - [incl_app : A <<= C -> B <<= C -> A++B <<= C]
 *)
 
-Hint Resolve incl_refl incl_tl incl_cons incl_appl incl_appr incl_app : core.
+#[export] Hint Resolve incl_refl incl_tl incl_cons incl_appl incl_appr incl_app : core.
 
 Lemma incl_nil X (A : list X) :
   nil <<= A.
 
 Proof. intros x []. Qed.
 
-Hint Resolve incl_nil : core.
+#[export] Hint Resolve incl_nil : core.
 
 Lemma incl_map X Y A B (f : X -> Y) :
   A <<= B -> map f A <<= map f B.

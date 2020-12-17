@@ -320,7 +320,7 @@ Proof.
   -rewrite validEnv'_cons.  apply validEnv_cons in vA as [ca cA]. split;auto. apply deClos_valComp; auto.
 Qed.
 
-Hint Resolve deClos_validEnv : core.
+#[export] Hint Resolve deClos_validEnv : core.
 
 Lemma subst_substList x s t A: validEnv' A -> subst (substList s (S x) A) x t = substList s x (t::A).
 Proof.
@@ -340,7 +340,7 @@ Proof with repeat (subst || firstorder).
   -inv H8. constructor;auto;intros a [?|?];subst;auto.
 Qed.
 
-Hint Resolve validComp_step : core.
+#[export] Hint Resolve validComp_step : core.
 (*
 Lemma deClos_correct''' s t : validComp s -> s >(0) t -> deClos s = deClos t.
 Proof with repeat (cbn in * || eauto || congruence || lia || subst).
