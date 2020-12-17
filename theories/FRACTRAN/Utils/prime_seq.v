@@ -204,7 +204,7 @@ Record primestream :=
     str_prime : forall n, prime (str n);
   }.
 
-Hint Immediate str_prime : core.
+#[export] Hint Immediate str_prime : core.
 #[export] Hint Resolve str_inj : core.
 
 Lemma primestream_divides (ps : primestream) n m :  divides (ps n) (ps m) -> n = m.
