@@ -768,3 +768,13 @@ SystemF/Reductions/SysF_TYP_to_SysF_TC.v
 SystemF/Reductions/HaltTM_1_to_SysF_TYP.v
 SystemF/Reductions/HaltTM_1_to_SysF_TC.v
 SystemF/Reductions/HaltTM_1_to_SysF_INH.v
+
+# new
+CounterMachines/CM2X.v
+CounterMachines/Reductions/CM2_HALT_to_CM2X_HALT.v
+
+SemiUnification/axioms.v
+SemiUnification/header_extensible.v
+SemiUnification/unscoped.v
+SemiUnification/pts.v
+SemiUnification/HOSemiU.v
