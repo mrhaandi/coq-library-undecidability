@@ -7,7 +7,7 @@ Inductive term : Type :=
   | const : nat -> term
   | app : term -> term -> term
   | lam : term -> term -> term
-  | pi : term -> term -> term.
+  | Pi : term -> term -> term.
 
 Lemma congr_const {s0 : nat} {t0 : nat} (H0 : eq s0 t0) :
   eq (const s0) (const t0).
@@ -26,11 +26,11 @@ Proof.
 exact (eq_trans (eq_trans eq_refl (ap (fun x => lam x s1) H0))
                 (ap (fun x => lam t0 x) H1)).
 Qed.
-Lemma congr_pi {s0 : term} {s1 : term} {t0 : term} {t1 : term}
-  (H0 : eq s0 t0) (H1 : eq s1 t1) : eq (pi s0 s1) (pi t0 t1).
+Lemma congr_Pi {s0 : term} {s1 : term} {t0 : term} {t1 : term}
+  (H0 : eq s0 t0) (H1 : eq s1 t1) : eq (Pi s0 s1) (Pi t0 t1).
 Proof.
-exact (eq_trans (eq_trans eq_refl (ap (fun x => pi x s1) H0))
-                (ap (fun x => pi t0 x) H1)).
+exact (eq_trans (eq_trans eq_refl (ap (fun x => Pi x s1) H0))
+                (ap (fun x => Pi t0 x) H1)).
 Qed.
 Definition upRen_term_term (xi : forall _ : nat, nat) :
   forall _ : nat, nat := up_ren xi.
@@ -41,8 +41,8 @@ Fixpoint ren_term (xi_term : forall _ : nat, nat) (s : term) : term :=
   | app s0 s1 => app (ren_term xi_term s0) (ren_term xi_term s1)
   | lam s0 s1 =>
       lam (ren_term xi_term s0) (ren_term (upRen_term_term xi_term) s1)
-  | pi s0 s1 =>
-      pi (ren_term xi_term s0) (ren_term (upRen_term_term xi_term) s1)
+  | Pi s0 s1 =>
+      Pi (ren_term xi_term s0) (ren_term (upRen_term_term xi_term) s1)
   end.
 Definition up_term_term (sigma : forall _ : nat, term) :
   forall _ : nat, term :=
@@ -55,8 +55,8 @@ Fixpoint subst_term (sigma_term : forall _ : nat, term) (s : term) : term :=
   | lam s0 s1 =>
       lam (subst_term sigma_term s0)
         (subst_term (up_term_term sigma_term) s1)
-  | pi s0 s1 =>
-      pi (subst_term sigma_term s0) (subst_term (up_term_term sigma_term) s1)
+  | Pi s0 s1 =>
+      Pi (subst_term sigma_term s0) (subst_term (up_term_term sigma_term) s1)
   end.
 Definition upId_term_term (sigma : forall _ : nat, term)
   (Eq : forall x, eq (sigma x) (var x)) :
@@ -78,8 +78,8 @@ eq (subst_term sigma_term s) s :=
   | lam s0 s1 =>
       congr_lam (idSubst_term sigma_term Eq_term s0)
         (idSubst_term (up_term_term sigma_term) (upId_term_term _ Eq_term) s1)
-  | pi s0 s1 =>
-      congr_pi (idSubst_term sigma_term Eq_term s0)
+  | Pi s0 s1 =>
+      congr_Pi (idSubst_term sigma_term Eq_term s0)
         (idSubst_term (up_term_term sigma_term) (upId_term_term _ Eq_term) s1)
   end.
 Definition upExtRen_term_term (xi : forall _ : nat, nat)
@@ -103,8 +103,8 @@ eq (ren_term xi_term s) (ren_term zeta_term s) :=
       congr_lam (extRen_term xi_term zeta_term Eq_term s0)
         (extRen_term (upRen_term_term xi_term) (upRen_term_term zeta_term)
            (upExtRen_term_term _ _ Eq_term) s1)
-  | pi s0 s1 =>
-      congr_pi (extRen_term xi_term zeta_term Eq_term s0)
+  | Pi s0 s1 =>
+      congr_Pi (extRen_term xi_term zeta_term Eq_term s0)
         (extRen_term (upRen_term_term xi_term) (upRen_term_term zeta_term)
            (upExtRen_term_term _ _ Eq_term) s1)
   end.
@@ -130,8 +130,8 @@ eq (subst_term sigma_term s) (subst_term tau_term s) :=
       congr_lam (ext_term sigma_term tau_term Eq_term s0)
         (ext_term (up_term_term sigma_term) (up_term_term tau_term)
            (upExt_term_term _ _ Eq_term) s1)
-  | pi s0 s1 =>
-      congr_pi (ext_term sigma_term tau_term Eq_term s0)
+  | Pi s0 s1 =>
+      congr_Pi (ext_term sigma_term tau_term Eq_term s0)
         (ext_term (up_term_term sigma_term) (up_term_term tau_term)
            (upExt_term_term _ _ Eq_term) s1)
   end.
@@ -157,8 +157,8 @@ eq (ren_term zeta_term (ren_term xi_term s)) (ren_term rho_term s) :=
         (compRenRen_term (upRen_term_term xi_term)
            (upRen_term_term zeta_term) (upRen_term_term rho_term)
            (up_ren_ren _ _ _ Eq_term) s1)
-  | pi s0 s1 =>
-      congr_pi (compRenRen_term xi_term zeta_term rho_term Eq_term s0)
+  | Pi s0 s1 =>
+      congr_Pi (compRenRen_term xi_term zeta_term rho_term Eq_term s0)
         (compRenRen_term (upRen_term_term xi_term)
            (upRen_term_term zeta_term) (upRen_term_term rho_term)
            (up_ren_ren _ _ _ Eq_term) s1)
@@ -190,8 +190,8 @@ eq (subst_term tau_term (ren_term xi_term s)) (subst_term theta_term s) :=
         (compRenSubst_term (upRen_term_term xi_term) (up_term_term tau_term)
            (up_term_term theta_term) (up_ren_subst_term_term _ _ _ Eq_term)
            s1)
-  | pi s0 s1 =>
-      congr_pi (compRenSubst_term xi_term tau_term theta_term Eq_term s0)
+  | Pi s0 s1 =>
+      congr_Pi (compRenSubst_term xi_term tau_term theta_term Eq_term s0)
         (compRenSubst_term (upRen_term_term xi_term) (up_term_term tau_term)
            (up_term_term theta_term) (up_ren_subst_term_term _ _ _ Eq_term)
            s1)
@@ -235,8 +235,8 @@ eq (ren_term zeta_term (subst_term sigma_term s)) (subst_term theta_term s)
         (compSubstRen_term (up_term_term sigma_term)
            (upRen_term_term zeta_term) (up_term_term theta_term)
            (up_subst_ren_term_term _ _ _ Eq_term) s1)
-  | pi s0 s1 =>
-      congr_pi (compSubstRen_term sigma_term zeta_term theta_term Eq_term s0)
+  | Pi s0 s1 =>
+      congr_Pi (compSubstRen_term sigma_term zeta_term theta_term Eq_term s0)
         (compSubstRen_term (up_term_term sigma_term)
            (upRen_term_term zeta_term) (up_term_term theta_term)
            (up_subst_ren_term_term _ _ _ Eq_term) s1)
@@ -281,8 +281,8 @@ eq (subst_term tau_term (subst_term sigma_term s)) (subst_term theta_term s)
         (compSubstSubst_term (up_term_term sigma_term)
            (up_term_term tau_term) (up_term_term theta_term)
            (up_subst_subst_term_term _ _ _ Eq_term) s1)
-  | pi s0 s1 =>
-      congr_pi
+  | Pi s0 s1 =>
+      congr_Pi
         (compSubstSubst_term sigma_term tau_term theta_term Eq_term s0)
         (compSubstSubst_term (up_term_term sigma_term)
            (up_term_term tau_term) (up_term_term theta_term)
@@ -312,8 +312,8 @@ Fixpoint rinst_inst_term (xi_term : forall _ : nat, nat)
       congr_lam (rinst_inst_term xi_term sigma_term Eq_term s0)
         (rinst_inst_term (upRen_term_term xi_term) (up_term_term sigma_term)
            (rinstInst_up_term_term _ _ Eq_term) s1)
-  | pi s0 s1 =>
-      congr_pi (rinst_inst_term xi_term sigma_term Eq_term s0)
+  | Pi s0 s1 =>
+      congr_Pi (rinst_inst_term xi_term sigma_term Eq_term s0)
         (rinst_inst_term (upRen_term_term xi_term) (up_term_term sigma_term)
            (rinstInst_up_term_term _ _ Eq_term) s1)
   end.
