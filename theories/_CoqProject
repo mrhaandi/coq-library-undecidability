@@ -773,8 +773,19 @@ SystemF/Reductions/HaltTM_1_to_SysF_INH.v
 CounterMachines/CM2X.v
 CounterMachines/Reductions/CM2_HALT_to_CM2X_HALT.v
 
-SemiUnification/axioms.v
-SemiUnification/header_extensible.v
-SemiUnification/unscoped.v
-SemiUnification/pts.v
+SemiUnification/autosubst/axioms.v
+SemiUnification/autosubst/header_extensible.v
+SemiUnification/autosubst/unscoped.v
+SemiUnification/autosubst/pts.v
+
+SemiUnification/autosubst/unscoped_more.v
+SemiUnification/autosubst/pts_more.v
+SemiUnification/autosubst/allfv_more.v
+
+SemiUnification/PTSUtil/step_facts.v
+SemiUnification/PTSUtil/red_beta_facts.v
+SemiUnification/PTSUtil/eq_beta_facts.v
+SemiUnification/PTSUtil/normal_facts.v
+SemiUnification/PTSUtil/term_enum.v
 SemiUnification/HOSemiU.v
+SemiUnification/HOSemiU_WIP.v

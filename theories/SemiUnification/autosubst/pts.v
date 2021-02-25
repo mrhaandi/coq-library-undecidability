@@ -1,5 +1,5 @@
-Require Export Undecidability.SemiUnification.unscoped.
-Require Export Undecidability.SemiUnification.header_extensible.
+Require Export Undecidability.SemiUnification.autosubst.unscoped.
+Require Export Undecidability.SemiUnification.autosubst.header_extensible.
 
 (* added "->" as syntactic sugar, renamed "term_var" into "var" *)
 Inductive term : Type :=
