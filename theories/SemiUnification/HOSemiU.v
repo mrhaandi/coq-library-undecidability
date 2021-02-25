@@ -30,12 +30,16 @@ Inductive step : term -> term -> Prop :=
   | step_PiL P P' Q: step P P' -> step (Pi P Q) (Pi P' Q)
   | step_PiR P Q Q': step Q Q' -> step (Pi P Q) (Pi P Q').
 
-(* a term is normal (in normal form) if it is not reducible *)
+(* a term is (strongly) normalizing if it only allows for finite reduction chains *)
+Definition normalizing (P : term) : Prop := 
+  Acc (transp term step) P.
+
+(* a term is normal if it is not reducible *)
 Definition normal (P : term) : Prop :=
   forall Q, not (step P Q).
 
-(* beta-equality is the reflexive, symmetric, transitive closure 
-  of the single step beta reduction *)
+(* beta-equivalence is the reflexive, symmetric, transitive closure 
+  of the single-step beta reduction *)
 Definition eq_beta := clos_refl_sym_trans term step.
 
 Local Notation "P =β Q" := (eq_beta P Q) (at level 50).
@@ -62,9 +66,21 @@ Definition solution {p : term -> Prop} (φ : valuation p) : inequality -> Prop :
     substitute ψ (substitute φ P) =β substitute φ Q.
 
 (* Higher-order Semi-unification *)
-(* is there a normal valuation φ that solves all inequalities? *)
+(* is there a normalizing valuation φ that solves all inequalities? *)
 Definition HOSemiU (cs: list inequality) := 
+  exists (φ: valuation normalizing), forall (c: inequality), In c cs -> solution φ c.
+
+(* Higher-order Semi-unification *)
+(* is there a normal valuation φ that solves all inequalities? *)
+Definition HOSemiU' (cs: list inequality) := 
   exists (φ: valuation normal), forall (c: inequality), In c cs -> solution φ c.
+
+(* multi-step beta reduction is the reflexive, transitive closure 
+  of of the single-step beta reduction *)
+Definition red_beta := clos_refl_trans term step.
+
+
+
 
 (* FACTS *)
 Require Import PeanoNat Lia.
@@ -72,6 +88,9 @@ Require Import ssreflect ssrbool ssrfun.
 
 (* TODO part of autosubst? *)
 Lemma upRen_term_term_id x : upRen_term_term id x = x.
+Proof. by case: x. Qed.
+
+Lemma up_term_term_var x : up_term_term var x = var x.
 Proof. by case: x. Qed.
 
 (* TODO autosubst? *)
@@ -95,9 +114,26 @@ Proof.
     by move=> ->.
 Qed.
 
+(*TODO part of autosubst? no funext *)
+Lemma subst_term_var {P} : subst_term var P = P.
+Proof.
+  elim: P.
+  - done.
+  - done.
+  - by move=> /= ? -> ? ->.
+  - move=> /= ? -> ?.
+    under [subst_term (up_term_term var) _]ext_term => ? do 
+      rewrite up_term_term_var.
+    by move=> ->.
+  - move=> /= ? -> ?.
+    under [subst_term (up_term_term var) _]ext_term => ? do 
+      rewrite up_term_term_var.
+    by move=> ->.
+Qed.
+
 (* TODO rinstId_term uses funext, which is bad *)
 (* alternative: ren_term_id *)
-Definition term_norm := (compRen_term, renRen_term, @ren_term_id, renComp_term).
+Definition term_norm := (compRen_term, renRen_term, @ren_term_id, renComp_term, compComp_term).
 
 (* such that simpl evaluates funcomp f g x *)
 Arguments funcomp {X Y Z} _ _ _ /.
@@ -113,6 +149,8 @@ Fixpoint allfv_term (p: nat -> Prop) (P: term) :=
   | lam P Q => allfv_term p P /\ allfv_term (scons True p) Q
   | Pi P Q => allfv_term p P /\ allfv_term (scons True p) Q
   end.
+
+
 
 (* notion of a simple type represented by a term
   s, t ::= x | Pi x : s. t (where x is not free in t)
@@ -479,7 +517,6 @@ Proof.
     apply /allfv_ren_term. by apply: allfv_term_triv.
 Qed.
 
-
 (* TODO autosubst? *)
 Lemma ext_ren_term' {xi zeta P Q} : 
   (forall x, xi x = zeta x) -> P = Q -> ren_term xi P = ren_term zeta Q.
@@ -491,6 +528,7 @@ Lemma up_ren_subst_term_term' xi sigma x:
   (upRen_term_term xi >> up_term_term sigma) x = up_term_term (xi >> sigma) x.
 Proof. by apply: up_ren_subst_term_term. Qed.
 
+(* TODO autosubst? *)
 Lemma up_term_term_funcomp {xi sigma x} : 
   up_term_term (xi >> sigma) x = (upRen_term_term xi >> up_term_term sigma) x.
 Proof.
@@ -625,7 +663,7 @@ Proof.
   move=> <-. apply: ext_term => ?. by rewrite ?term_norm.
 Qed.
 
-Definition red_beta := clos_refl_trans term step.
+
 
 
 
@@ -667,53 +705,44 @@ Proof.
   by rewrite ?term_norm.
 Qed.
 
+(* Fallstudie für Adrian *)
 Lemma red_beta_diamond {P Q1 Q2} : red_beta P Q1 -> red_beta P Q2 -> 
   { Q | red_beta Q1 Q /\ red_beta Q2 Q }.
 Proof.
 Admitted.
 
-Definition rt_rt1n := Relations.Operators_Properties.clos_rt_rt1n_iff.
+Require Import Relations.Operators_Properties.
+
+Definition rst_rst1n := clos_rst_rst1n_iff.
+Definition rt_rt1n := clos_rt_rt1n_iff.
 Arguments rt_step {A R x y}.
 
-(* TODO move to red_beta facts *)
-Lemma red_beta_appI P P' Q Q' : red_beta P P' -> red_beta Q Q' -> red_beta (app P Q) (app P' Q').
+Lemma red_beta_XI X P P' Q Q' : (X = app \/ X = lam \/ X = Pi) -> 
+  red_beta P P' -> red_beta Q Q' -> red_beta (X P Q) (X P' Q').
 Proof.
-  move=> /rt_rt1n H. elim: H Q Q'.
+  move=> HX /rt_rt1n H. elim: H Q Q'.
   - move=> >. elim => *.
-    + apply: rt_step. by apply: step_appR.
+    + apply: rt_step.
+      move: HX => [|[|]] ->; by eauto using step with nocore.
     + by apply: rt_refl.
     + apply: rt_trans; by eassumption.
   - move=> > ? ? IH > /IH ?.
     apply: rt_trans; last by eassumption.
-    apply: rt_step. by apply: step_appL.
+    apply: rt_step. 
+    move: HX => [|[|]] ->; by eauto using step with nocore.
 Qed.
+
+(* TODO move to red_beta facts *)
+Corollary red_beta_appI P P' Q Q' : red_beta P P' -> red_beta Q Q' -> red_beta (app P Q) (app P' Q').
+Proof. apply: red_beta_XI; by tauto. Qed.
 
 (* TODO move to red_beta facts *)
 Lemma red_beta_lamI P P' Q Q' : red_beta P P' -> red_beta Q Q' -> red_beta (lam P Q) (lam P' Q').
-Proof.
-  move=> /rt_rt1n H. elim: H Q Q'.
-  - move=> >. elim => *.
-    + apply: rt_step. by apply: step_lamR.
-    + by apply: rt_refl.
-    + apply: rt_trans; by eassumption.
-  - move=> > ? ? IH > /IH ?.
-    apply: rt_trans; last by eassumption.
-    apply: rt_step. by apply: step_lamL.
-Qed.
-
+Proof. apply: red_beta_XI; by tauto. Qed.
 
 (* TODO move to red_beta facts *)
 Lemma red_beta_PiI P P' Q Q' : red_beta P P' -> red_beta Q Q' -> red_beta (Pi P Q) (Pi P' Q').
-Proof.
-  move=> /rt_rt1n H. elim: H Q Q'.
-  - move=> >. elim => *.
-    + apply: rt_step. by apply: step_PiR.
-    + by apply: rt_refl.
-    + apply: rt_trans; by eassumption.
-  - move=> > ? ? IH > /IH ?.
-    apply: rt_trans; last by eassumption.
-    apply: rt_step. by apply: step_PiL.
-Qed.
+Proof. apply: red_beta_XI; by tauto. Qed.
 
 (* TODO move to beta facts *)
 Lemma step_betaI {P Q R R'} : R' = (subst_term (scons R var) Q) -> step (app (lam P Q) R) R'.
@@ -728,13 +757,50 @@ Proof.
 Qed.
 
 (* TODO move to beta facts *)
-Lemma red_beta_ren_termI xi {P Q} : red_beta P Q -> red_beta (ren_term xi P) (ren_term xi Q).
+Lemma step_subst_termI sigma {P Q} : step P Q -> step (subst_term sigma P) (subst_term sigma Q).
 Proof.
-  elim.
-  - move=> *. by apply /rt_step /step_ren_termI.
-  - move=> *. by apply: rt_refl.
-  - move=> *. apply: rt_trans; by eassumption.
+  move=> H. elim: H sigma; [|by eauto using step with nocore ..].
+  move=> > /=. apply: step_betaI. rewrite ?term_norm.
+  apply: ext_term. case; first done.
+  move=> ? /=. by rewrite term_norm subst_term_var. 
 Qed.
+
+(* transport f-image of step to eq_beta *)
+Lemma red_beta_fI f : 
+  (forall P Q, step P Q -> step (f P) (f Q)) -> 
+  forall P Q, red_beta P Q -> red_beta (f P) (f Q).
+Proof.
+  move=> H ? ? /rt_rt1n. elim; first by (move=> *; apply: rt_refl).
+  move=> > ? _ ?. apply: rt_trans; last by eassumption.
+  apply: rt_step. by apply: H.
+Qed.
+
+Corollary red_beta_ren_termI xi {P Q} : red_beta P Q -> 
+  red_beta (ren_term xi P) (ren_term xi Q).
+Proof. apply: red_beta_fI => *. by apply: step_ren_termI. Qed.
+
+Corollary red_beta_subst_termI {sigma P Q} : red_beta P Q  -> 
+  red_beta (subst_term sigma P) (subst_term sigma Q).
+Proof. apply: red_beta_fI => *. by apply: step_subst_termI. Qed.
+
+(* transport f-image of step to eq_beta *)
+Lemma eq_beta_fI f : 
+  (forall P Q, step P Q -> step (f P) (f Q)) -> 
+  forall P Q, eq_beta P Q -> eq_beta (f P) (f Q).
+Proof.
+  move=> H ? ? /rst_rst1n. elim; first by (move=> *; apply: rst_refl).
+  move=> > [] ? _ ?; (apply: rst_trans; last by eassumption).
+  - apply: rst_step. by apply: H.
+  - apply: rst_sym. apply: rst_step. by apply: H.
+Qed.
+
+Corollary eq_beta_ren_termI xi {P Q} : eq_beta P Q -> 
+  eq_beta (ren_term xi P) (ren_term xi Q).
+Proof. apply: eq_beta_fI => *. by apply: step_ren_termI. Qed.
+
+Corollary eq_beta_subst_termI {sigma P Q} : eq_beta P Q  -> 
+  eq_beta (subst_term sigma P) (subst_term sigma Q).
+Proof. apply: eq_beta_fI => *. by apply: step_subst_termI. Qed.
 
 Lemma simple_map_term_red_beta_impl {f g P} : (forall P', red_beta (f P') (g P')) ->
   red_beta (simple_map_term f P) (simple_map_term g P).
@@ -778,7 +844,8 @@ Inductive red_beta' : term -> term -> Prop :=
 *)
 
 (* TODO move to red_beta facts *)
-Lemma red_beta_subst_termI {sigma tau P} : (forall x, red_beta (sigma x) (tau x)) -> 
+(* todo rename such properties to transport? what i the name? not ext_? *)
+Lemma ext_red_beta_subst_term {sigma tau P} : (forall x, red_beta (sigma x) (tau x)) -> 
   red_beta (subst_term sigma P) (subst_term tau P).
 Proof.
   elim: P sigma tau.
@@ -794,6 +861,54 @@ Proof.
     apply: red_beta_PiI; first by apply IHP.
     apply: IHQ. case; first by apply: rt_refl.
     move=> x /=. by apply: red_beta_ren_termI.
+Qed.
+
+
+
+Lemma eq_beta_XI X P P' Q Q' : (X = app \/ X = lam \/ X = Pi) ->
+  eq_beta P P' -> eq_beta Q Q' -> eq_beta (X P Q) (X P' Q').
+Proof.
+  move=> HX /rst_rst1n. elim.
+  - move=> ? /rst_rst1n. elim; first by (move=> *; apply: rst_refl).
+    move=> > [] /rt_step H1 _ IH; 
+      (apply: rst_trans; last by eassumption).
+    + apply: clos_rt_clos_rst. 
+      by apply: red_beta_XI; [| apply: rt_refl |].
+    + apply: rst_sym. apply: clos_rt_clos_rst. 
+      by apply: red_beta_XI; [| apply: rt_refl |].
+  - move=> > [] /rt_step H1 _ IH /IH H2; 
+      (apply: rst_trans; last by eassumption).
+    + apply: clos_rt_clos_rst.
+      by apply: red_beta_XI; [| | apply: rt_refl].
+    + apply: rst_sym. apply: clos_rt_clos_rst. 
+      by apply: red_beta_XI; [| | apply: rt_refl].
+Qed.
+
+Corollary eq_beta_appI P P' Q Q' : eq_beta P P' -> eq_beta Q Q' -> eq_beta (app P Q) (app P' Q').
+Proof. apply: eq_beta_XI. by tauto. Qed.
+
+Corollary eq_beta_lamI P P' Q Q' : eq_beta P P' -> eq_beta Q Q' -> eq_beta (lam P Q) (lam P' Q').
+Proof. apply: eq_beta_XI. by tauto. Qed.
+
+Corollary eq_beta_PiI P P' Q Q' : eq_beta P P' -> eq_beta Q Q' -> eq_beta (Pi P Q) (Pi P' Q').
+Proof. apply: eq_beta_XI. by tauto. Qed.
+
+Lemma ext_eq_beta_subst_term {sigma tau P} : (forall x, eq_beta (sigma x) (tau x)) -> 
+  eq_beta (subst_term sigma P) (subst_term tau P).
+Proof.
+  elim: P sigma tau.
+  - move=> >. by apply.
+  - move=> *. by apply: rst_refl.
+  - move=> P IHP Q IHQ sigma tau H /=.
+    apply: eq_beta_appI; [by apply: IHP | by apply: IHQ].
+  - move=> P IHP Q IHQ sigma tau H /=.
+    apply: eq_beta_lamI; first by apply IHP.
+    apply: IHQ. case; first by apply: rst_refl.
+    move=> x /=. by apply: eq_beta_ren_termI.
+  - move=> P IHP Q IHQ sigma tau H /=.
+    apply: eq_beta_PiI; first by apply IHP.
+    apply: IHQ. case; first by apply: rst_refl.
+    move=> x /=. by apply: eq_beta_ren_termI.
 Qed.
 
 Lemma red_betaE {P Q} : red_beta P Q ->
@@ -842,7 +957,7 @@ Proof.
       * move=> [?] [?] [?] ?. subst. right.
         do 2 eexists. constructor; first by eassumption.
         apply: rt_trans; last by eassumption.
-        apply: red_beta_subst_termI. case; first by apply: rt_step.
+        apply: ext_red_beta_subst_term. case; first by apply: rt_step.
         move=> *. by apply: rt_refl.
     + move=> > /rt_step ? _ [?] [?] [->] [? ?].
       do 2 eexists. constructor; first by reflexivity.
@@ -954,10 +1069,16 @@ Lemma stepE {P Q} : step P Q ->
   end.
 Proof. case; by eauto. Qed.
 
+Lemma normal_lamI {P Q} : normal P -> normal Q -> normal (lam P Q).
+Proof. move=> HP HQ R /stepE. by case => - [?] [_] => [/HP | /HQ]. Qed.
+
 Lemma normal_PiI {P Q} : normal P -> normal Q -> normal (Pi P Q).
 Proof. move=> HP HQ R /stepE. by case => - [?] [_] => [/HP | /HQ]. Qed.
 
 Lemma normal_varI {x} : normal (var x).
+Proof. by move=> ? /stepE. Qed. 
+
+Lemma normal_constI {x} : normal (const x).
 Proof. by move=> ? /stepE. Qed. 
 
 (* construct a valuation from a substitution sigma which pointwise satisfied predicate p *)
@@ -981,8 +1102,6 @@ Proof.
     apply: (normal_ren_termE (scons 0 id)) => /=.
     rewrite ?term_norm. by apply: svalP.
 Qed.
-
-Definition rst_rst1n := Operators_Properties.clos_rst_rst1n_iff.
 
 Lemma red_beta_normal {P Q} : red_beta P Q -> normal P -> P = Q.
 Proof.
@@ -1033,7 +1152,7 @@ Theorem simple_convervativity (cs: list inequality) :
   (* every inequality is simple *)
   (Forall (fun '(P, Q) => simple P /\ simple Q) cs) -> 
   (* cs has a normal solution *)
-  HOSemiU cs ->
+  HOSemiU' cs ->
   (* cs has a simple solution *)
   exists (φ: valuation simple), forall (c: inequality), In c cs -> solution φ c.
 Proof.
@@ -1049,7 +1168,80 @@ Proof.
     by apply: rst_refl.
 Qed.
 
-Print Assumptions simple_convervativity.
+Lemma normal_dec (P: term) : (normal P) + { Q | step P Q }.
+Proof.
+  elim: P.
+  - move=> >. left. by apply: normal_varI.
+  - move=> >. left. apply: normal_constI.
+  - move=> P [IHP|[P' ?]] Q; first last.
+    { move=> _. right. exists (app P' Q). by apply: step_appL. }
+    move=> [IHQ|[Q' ?]]; first last.
+    { right. exists (app P Q'). by apply: step_appR. }
+    case: P IHP => > ?.
+    + left=> ? /stepE. by firstorder done.
+    + left=> ? /stepE. by firstorder done.
+    + left=> ? /stepE. by firstorder done.
+    + right. eexists. by apply: step_beta.
+    + left=> ? /stepE. by firstorder done.
+  - move=> P [IHP|[P' ?]] Q; first last.
+    { move=> _. right. exists (lam P' Q). by apply: step_lamL. }
+    move=> [IHQ|[Q' ?]]; first last.
+    { right. exists (lam P Q'). by apply: step_lamR. }
+    left. by apply: normal_lamI.
+  - move=> P [IHP|[P' ?]] Q; first last.
+    { move=> _. right. exists (Pi P' Q). by apply: step_PiL. }
+    move=> [IHQ|[Q' ?]]; first last.
+    { right. exists (Pi P Q'). by apply: step_PiR. }
+    left. by apply: normal_PiI.
+Qed.
+
+Arguments transp {_} _ _ _ /.
+
+Lemma normalize {P: term} : normalizing P -> { Q | normal Q /\ red_beta P Q }.
+Proof.
+  elim => {}P. case: (normal_dec P).
+  - move=> *. exists P. by constructor; [ | apply: rt_refl ].
+  - move=> [Q HPQ] => _ /(_ Q HPQ) - [R] [? ?].
+    exists R. constructor; first done.
+    apply: rt_trans; [apply: rt_step|]; by eassumption.
+Qed.
+
+
+
+(* a normal term is trivially normalizing *)
+Lemma normalizing_normal {P} : normal P -> normalizing P.
+Proof. move=> HP. by constructor => ? /HP. Qed.
+
+(* normal substitutions and normalizing substitutions are equivalent for 
+  higher-order semi-unification *)
+Theorem HOSemiU_iff_HOSemiU' {cs: list inequality} : HOSemiU cs <-> HOSemiU' cs.
+Proof.
+  constructor.
+  - move=> [φ] /Forall_forall Hφ.
+    exists (fun x => exist _ _ (proj1 (svalP (normalize (svalP (φ x)))))).
+    apply /Forall_forall. apply: Forall_impl Hφ.
+    move=> [P Q] /= [ψ Hψ].
+    exists (fun x => exist _ _ (proj1 (svalP (normalize (svalP (ψ x)))))).
+    rewrite /substitute /=.
+    set ψ' := (ψ' in subst_term ψ' (subst_term _ _)).
+    set φ' := (φ' in subst_term φ' Q). rewrite -/φ'.
+    have Hφ' : forall P', substitute φ P' =β subst_term φ' P'.
+    { rewrite /substitute /φ' => ?. apply: ext_eq_beta_subst_term => x /=.
+      apply: clos_rt_clos_rst.
+      exact: proj2 (svalP (normalize (svalP (φ x)))). }
+    have Hψ' : forall P', substitute ψ P' =β subst_term ψ' P'.
+    { rewrite /substitute /ψ' => ?. apply: ext_eq_beta_subst_term => x /=.
+      apply: clos_rt_clos_rst.
+      exact: proj2 (svalP (normalize (svalP (ψ x)))). }
+    apply: rst_trans; last by apply: Hφ'.
+    apply: rst_trans; last by apply: Hψ.
+    apply: rst_sym. apply: rst_trans; first by apply: Hψ'.
+    by apply: eq_beta_subst_termI.
+  - move=> [φ'] /Forall_forall Hφ'.
+    exists (fun x => exist _ _ (normalizing_normal (svalP (φ' x)))).
+    apply /Forall_forall. apply: Forall_impl Hφ' => - [P Q] [ψ' Hψ'].
+    by exists (fun x => exist _ _ (normalizing_normal (svalP (ψ' x)))).
+Qed.
 
 (* EXPERIMENTAL *)
 
