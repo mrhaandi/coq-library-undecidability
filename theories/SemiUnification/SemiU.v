@@ -62,7 +62,7 @@ Definition SSemiU (p : list constraint) :=
 (* inequality: s ≤ t *)
 Definition inequality : Set := (term * term).
 
-(* φ solves s ≤ t, if there is ψ such that ψ (φ (s)) = φ (s) *)
+(* φ solves s ≤ t, if there is ψ such that ψ (φ (s)) = φ (t) *)
 Definition solution (φ : valuation) : inequality -> Prop := 
   fun '(s, t) => exists (ψ : valuation), substitute ψ (substitute φ s) = substitute φ t.
 

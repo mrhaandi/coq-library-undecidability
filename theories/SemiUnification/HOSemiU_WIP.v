@@ -4,9 +4,12 @@
   Affiliation(s):
     (1) Saarland University, Saarbrücken, Germany
 *)
+Require Import List.
+
 
 Require Import List Relation_Operators.
 
+(* TODO autosubst bad notation list_map *)
 Require Import Undecidability.SemiUnification.autosubst.pts.
 
 (* following imports could be incorporated into autosubst *)
@@ -31,6 +34,7 @@ Require Import ssreflect ssrbool ssrfun.
 (* such that transp step Q P evaluates step P Q *)
 Arguments transp {_} _ _ _ /.
 
+(*
 (* notion of a simple type represented by a term
   s, t ::= x | Pi x : s. t (where x is not free in t)
 *)
@@ -45,6 +49,7 @@ Fixpoint simple (P: term) :=
       simple Q /\ (* Q is simple *)
       allfv_term (fun y => 0 <> y) Q (* x does not occur free in Q *) 
   end.
+*)
 
 (* END term enumerability *)
 
@@ -70,14 +75,24 @@ Fixpoint prune (xi: nat -> nat) (P: term) : term :=
   | _ => var (encode_term (ren_term xi P))
   end.
 
+(* characterization of simple terms via fresh_0 *)
+Lemma fresh_0P P : (allfv_term non_zero P) <-> (exists Q, P = ren_term shift Q).
+Proof.
+  constructor.
+  - move=> HP. exists (ren_term (scons 0 id) P).
+    rewrite term_norm. rewrite -[LHS]ren_term_id.
+    apply: ext_allfv_ren_term. apply: allfv_term_impl HP. by case.
+  - move=> [? ->]. rewrite allfv_ren_term. by apply: allfv_term_triv.
+Qed.
+
 (* renamings transport simple *)
 Lemma simple_ren_term {xi P} : simple P -> simple (ren_term xi P).
 Proof.
   elim: P xi => //=.
-  move=> P IHP Q IHQ xi [HP] [H1Q H2Q].
+  move=> P IHP Q IHQ xi [HP] [H1Q /fresh_0P H2Q].
   constructor; first by apply: IHP.
   constructor; first by apply: IHQ.
-  apply /allfv_ren_term. apply: allfv_term_impl H2Q.
+  apply /fresh_0P. apply /allfv_ren_term. apply: allfv_term_impl H2Q.
   by case.
 Qed.
 
@@ -89,7 +104,7 @@ Proof.
   case: (fresh_0 Q) => ?; last done.
   constructor; [done | constructor].
   - by apply: simple_ren_term.
-  - apply /allfv_ren_term. 
+  - apply /fresh_0P. apply /allfv_ren_term. 
     by apply: allfv_term_triv.
 Qed.
 
@@ -139,14 +154,13 @@ Proof.
       rewrite term_norm. apply: extRen_term. by case.
 Qed.
 
-
 (* pruning an instance of a simple type can be internalized *)
 (* "KEY LEMMA 1" *)
 Lemma prune_subst_term {xi sigma P} : simple P -> prune xi (subst_term sigma P) = subst_term (funcomp (prune xi) sigma) P.
 Proof.
   elim: P xi sigma => //=.
   move=> P IHP Q IHQ xi sigma.
-  move=> [HP] [H1Q H2Q]. case: (fresh_0 _) => H3Q.
+  move=> [HP] [H1Q /fresh_0P H2Q]. case: (fresh_0 _) => H3Q.
   - congr Pi; first by apply: IHP.
     rewrite (IHQ _ _ H1Q) term_norm.
     (* ext_term not applicable because substitutions are different on 0, which is absent *)
@@ -409,26 +423,29 @@ Proof.
 Qed.
 
 (* construct a valuation from a substitution sigma which pointwise satisfied predicate p *)
-Definition valuationI (p: term -> Prop)
-  (sigma: nat -> term) (H: forall x, p (sigma x)) : valuation p :=
+Definition valuation'I (p: term -> Prop)
+  (sigma: valuation) (H: forall x, p (sigma x)) : valuation' p :=
   (fun x => exist _ _ (H x)).
 
-Lemma normal_simple_substituteI {φ: valuation normal} {P} : simple P -> normal (substitute φ P).
+Definition substitute {p: term -> Prop} (φ: valuation' p) (P: term) :=
+  subst_term (trim_valuation' φ) P.
+
+Lemma normal_simple_substituteI {φ: valuation' normal} {P} : 
+  simple P -> normal (substitute φ P).
 Proof.
   elim: P φ => //.
-  - move=> x φ _. rewrite /substitute /=.
-    by apply: svalP.
-  - move=> P IHP Q IHQ φ /= [/IHP {}IHP] [/IHQ {}IHQ] HQ.
+  - move=> x φ _. by apply: svalP.
+  - move=> P IHP Q IHQ φ /= [/IHP {}IHP] [/IHQ {}IHQ] /fresh_0P HQ.
     rewrite /substitute /=. apply: normal_PiI; first by apply: IHP.
     set sigma := up_term_term (fun x => sval (φ x)).
-    apply: (IHQ (valuationI normal sigma _)).
+    apply: (IHQ (valuation'I normal sigma _)).
     move=> [|x]; first by apply: normal_varI.
     apply: (normal_ren_termE (scons 0 id)) => /=.
     rewrite ?term_norm. by apply: svalP.
 Qed.
 
 (* anny solution φ to a simple instance (P, Q) entails a simple solution sigma' *)
-Lemma simple_solutionI {φ ψ: valuation normal} {P Q} : simple P -> simple Q -> 
+Lemma simple_solutionI {φ ψ: valuation' normal} {P Q} : simple P -> simple Q -> 
   eq_beta (substitute ψ (substitute φ P)) (substitute φ Q) ->
   let sigma' := (fun x => prune id (sval (φ x))) in
   exists tau', 
@@ -453,38 +470,48 @@ Proof.
     by rewrite -key2'_final.
 Qed.
 
-(* a list of simple inequalities has a solution iff it has a simple solution *)
-Theorem simple_convervativity (cs: list inequality) : 
-  (* every inequality is simple *)
-  (Forall (fun '(P, Q) => simple P /\ simple Q) cs) -> 
+(* if a list of simple (and normal) inequalities has a normal solution 
+  then it has a simple solution *)
+Theorem simple_convervativity (cs1: list (inequality' simple)) (cs2: list (inequality' normal)) :
+  (* the underlying inequalities are identical *)
+  map trim_inequality' cs1 = map trim_inequality' cs2 ->
   (* cs has a normal solution *)
-  HOSemiU' cs ->
+  HOSemiU normal cs2 ->
   (* cs has a simple solution *)
-  exists (φ: valuation simple), forall (c: inequality), In c cs -> solution φ c.
+  HOSemiU simple cs1.
 Proof.
-  move=> Hcs [φ /Forall_forall Hφ].
-  unshelve eexists (valuationI simple (fun x => prune id (sval (φ x))) _).
+  move=> Hcs [φ Hφ].
+  unshelve eexists (valuation'I simple (fun x => prune id (sval (φ x))) _).
   - move=> ? /=. by apply: simple_prune.
-  - apply /Forall_forall.
-    apply: Forall_impl (Forall_and Hcs Hφ).
-    move=> [P Q] [[HP HQ]] [ψ] /(simple_solutionI HP HQ) /=.
-    move=> [tau'] [Htau' H].
-    exists (valuationI _ _ Htau').
-    rewrite /substitute /valuationI /= H.
+  - move=> c /(in_map trim_inequality').
+    rewrite Hcs => /in_map_iff - [+] [+] /Hφ.
+    move: c => [[P HP] [Q HQ]] [[P' HP'] [Q' HQ']] /=.
+    move=> [-> ->] [ψ] /(simple_solutionI HP HQ) /= [tau'] [Htau' H].
+    exists (valuation'I _ _ Htau').
+    rewrite /substitute /valuation'I /= H.
     by apply: rst_refl.
 Qed.
 
-(* normal substitutions and normalizing substitutions are equivalent for 
-  higher-order semi-unification *)
-Theorem HOSemiU_iff_HOSemiU' {cs: list inequality} : HOSemiU cs <-> HOSemiU' cs.
+(* if a list of normal (and normalizing) inequalities has a normalizing solution 
+  then it has a normal solution *)
+Theorem normal_convervativity (cs1: list (inequality' normal)) (cs2: list (inequality' normalizing)) :
+  (* the underlying inequalities are identical *)
+  map trim_inequality' cs1 = map trim_inequality' cs2 ->
+  (* cs has a normalizing solution *)
+  HOSemiU normalizing cs2 ->
+  (* cs has a normal solution *)
+  HOSemiU normal cs1.
 Proof.
-  constructor.
-  - move=> [φ] /Forall_forall Hφ.
-    exists (fun x => exist _ _ (proj1 (svalP (normalize (svalP (φ x)))))).
-    apply /Forall_forall. apply: Forall_impl Hφ.
-    move=> [P Q] /= [ψ Hψ].
+  move=> Hcs [φ Hφ].
+  unshelve eexists (valuation'I normal (fun x => sval (normalize (svalP (φ x)))) _).
+  - move=> x /=. exact: proj1 (svalP (normalize (svalP (φ x)))).
+  - move=> c /(in_map trim_inequality').
+    rewrite Hcs => /in_map_iff - [+] [+] /Hφ.
+    move: c => [[P HP] [Q HQ]] [[P' HP'] [Q' HQ']] /=.
+    move=> [-> ->] [ψ] Hψ.
     exists (fun x => exist _ _ (proj1 (svalP (normalize (svalP (ψ x)))))).
-    rewrite /substitute /=.
+    rewrite /trim_valuation' /valuation'I /=.
+
     set ψ' := (ψ' in subst_term ψ' (subst_term _ _)).
     set φ' := (φ' in subst_term φ' Q). rewrite -/φ'.
     have Hφ' : forall P', eq_beta (substitute φ P') (subst_term φ' P').
@@ -498,9 +525,6 @@ Proof.
     apply: rst_trans; last by apply: Hφ'.
     apply: rst_trans; last by apply: Hψ.
     apply: rst_sym. apply: rst_trans; first by apply: Hψ'.
-    by apply: eq_beta_subst_termI.
-  - move=> [φ'] /Forall_forall Hφ'.
-    exists (fun x => exist _ _ (normalizing_normal (svalP (φ' x)))).
-    apply /Forall_forall. apply: Forall_impl Hφ' => - [P Q] [ψ' Hψ'].
-    by exists (fun x => exist _ _ (normalizing_normal (svalP (ψ' x)))).
+    apply: eq_beta_subst_termI.
+    by apply: Hφ'.
 Qed.
