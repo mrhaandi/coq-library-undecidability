@@ -279,7 +279,7 @@ Proof.
     (* case (var 0) occurs in Q *)
     + rewrite /= encode_decode_term /= ?term_norm.
       under [subst_term (up_term_term _) _]ext_term => ?
-        do rewrite -up_ren_subst_term_term'.
+        do rewrite up_term_term_funcomp.
       done.
 Qed.
 

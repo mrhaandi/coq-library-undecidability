@@ -82,6 +82,7 @@ eq (subst_term sigma_term s) s :=
       congr_Pi (idSubst_term sigma_term Eq_term s0)
         (idSubst_term (up_term_term sigma_term) (upId_term_term _ Eq_term) s1)
   end.
+(* why not "ext_scons"? is "upExtRen_term_term" necessary ? *)
 Definition upExtRen_term_term (xi : forall _ : nat, nat)
   (zeta : forall _ : nat, nat) (Eq : forall x, eq (xi x) (zeta x)) :
   forall x, eq (upRen_term_term xi x) (upRen_term_term zeta x) :=
@@ -108,6 +109,8 @@ eq (ren_term xi_term s) (ren_term zeta_term s) :=
         (extRen_term (upRen_term_term xi_term) (upRen_term_term zeta_term)
            (upExtRen_term_term _ _ Eq_term) s1)
   end.
+(* same comment as with "upExtRen_term_term".
+  why not "ext_scons eq_refl (fun x => ap (ren_term shift) (Eq x))". *)
 Definition upExt_term_term (sigma : forall _ : nat, term)
   (tau : forall _ : nat, term) (Eq : forall x, eq (sigma x) (tau x)) :
   forall x, eq (up_term_term sigma x) (up_term_term tau x) :=

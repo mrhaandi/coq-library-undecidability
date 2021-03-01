@@ -3,6 +3,7 @@ Here, I use ssreflect for convenience. Actual generated proofs should be terms.
 *)
 
 Require Import Undecidability.SemiUnification.autosubst.pts.
+Require Import Undecidability.SemiUnification.autosubst.unscoped_more.
 
 Require Import ssreflect.
 
@@ -17,11 +18,6 @@ Proof. by case: x. Qed.
 Lemma shift_up_term_term sigma x : 
   (shift >> up_term_term sigma) x = (sigma >> ren_term shift) x.
 Proof. by case: x. Qed.
-
-(* TODO autosubst? sometimes more easy to use *)
-Lemma up_ren_subst_term_term' xi sigma x:
-  (upRen_term_term xi >> up_term_term sigma) x = up_term_term (xi >> sigma) x.
-Proof. by apply: up_ren_subst_term_term. Qed.
 
 (* TODO autosubst? *)
 Lemma up_term_term_funcomp {xi sigma x} : 
