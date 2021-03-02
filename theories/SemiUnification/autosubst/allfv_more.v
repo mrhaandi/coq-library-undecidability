@@ -4,6 +4,7 @@ Here, I use ssreflect for convenience. Actual generated proofs should be terms.
 allfv : evaluation of a predicate on all free variables
 *)
 
+Require Import Undecidability.SemiUnification.autosubst.unscoped.
 Require Import Undecidability.SemiUnification.autosubst.pts.
 Require Import Undecidability.SemiUnification.autosubst.pts_more.
 

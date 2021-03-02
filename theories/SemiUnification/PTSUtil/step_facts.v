@@ -11,6 +11,7 @@
 *)
 
 Require Import Undecidability.SemiUnification.HOSemiU.
+Require Import Undecidability.SemiUnification.autosubst.unscoped.
 Require Import Undecidability.SemiUnification.autosubst.pts.
 Require Import Undecidability.SemiUnification.autosubst.pts_more.
 Require Import Undecidability.SemiUnification.autosubst.allfv_more.

@@ -10,6 +10,7 @@ Require Import List.
 Require Import List Relation_Operators.
 
 (* TODO autosubst bad notation list_map *)
+Require Import Undecidability.SemiUnification.autosubst.unscoped.
 Require Import Undecidability.SemiUnification.autosubst.pts.
 
 (* following imports could be incorporated into autosubst *)

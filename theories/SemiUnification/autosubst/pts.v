@@ -1,40 +1,34 @@
-Require Export Undecidability.SemiUnification.autosubst.unscoped.
-Require Export Undecidability.SemiUnification.autosubst.header_extensible.
-
-(* added "->" as syntactic sugar, renamed "term_var" into "var" *)
+From Undecidability.SemiUnification.autosubst Require Import axioms unscoped header_extensible.
 Inductive term : Type :=
   | var : nat -> term
   | const : nat -> term
   | app : term -> term -> term
   | lam : term -> term -> term
   | Pi : term -> term -> term.
-
-Lemma congr_const {s0 : nat} {t0 : nat} (H0 : eq s0 t0) :
-  eq (const s0) (const t0).
+Lemma congr_const {s0 : nat} {t0 : nat} (H0 : s0 = t0) : const s0 = const t0.
 Proof.
 exact (eq_trans eq_refl (ap (fun x => const x) H0)).
 Qed.
 Lemma congr_app {s0 : term} {s1 : term} {t0 : term} {t1 : term}
-  (H0 : eq s0 t0) (H1 : eq s1 t1) : eq (app s0 s1) (app t0 t1).
+  (H0 : s0 = t0) (H1 : s1 = t1) : app s0 s1 = app t0 t1.
 Proof.
 exact (eq_trans (eq_trans eq_refl (ap (fun x => app x s1) H0))
                 (ap (fun x => app t0 x) H1)).
 Qed.
 Lemma congr_lam {s0 : term} {s1 : term} {t0 : term} {t1 : term}
-  (H0 : eq s0 t0) (H1 : eq s1 t1) : eq (lam s0 s1) (lam t0 t1).
+  (H0 : s0 = t0) (H1 : s1 = t1) : lam s0 s1 = lam t0 t1.
 Proof.
 exact (eq_trans (eq_trans eq_refl (ap (fun x => lam x s1) H0))
                 (ap (fun x => lam t0 x) H1)).
 Qed.
-Lemma congr_Pi {s0 : term} {s1 : term} {t0 : term} {t1 : term}
-  (H0 : eq s0 t0) (H1 : eq s1 t1) : eq (Pi s0 s1) (Pi t0 t1).
+Lemma congr_Pi {s0 : term} {s1 : term} {t0 : term} {t1 : term} (H0 : s0 = t0)
+  (H1 : s1 = t1) : Pi s0 s1 = Pi t0 t1.
 Proof.
 exact (eq_trans (eq_trans eq_refl (ap (fun x => Pi x s1) H0))
                 (ap (fun x => Pi t0 x) H1)).
 Qed.
-Definition upRen_term_term (xi : forall _ : nat, nat) :
-  forall _ : nat, nat := up_ren xi.
-Fixpoint ren_term (xi_term : forall _ : nat, nat) (s : term) : term :=
+Definition upRen_term_term (xi : nat -> nat) : nat -> nat := up_ren xi.
+Fixpoint ren_term (xi_term : nat -> nat) (s : term) : term :=
   match s with
   | var s0 => var (xi_term s0)
   | const s0 => const ((fun x => x) s0)
@@ -44,10 +38,9 @@ Fixpoint ren_term (xi_term : forall _ : nat, nat) (s : term) : term :=
   | Pi s0 s1 =>
       Pi (ren_term xi_term s0) (ren_term (upRen_term_term xi_term) s1)
   end.
-Definition up_term_term (sigma : forall _ : nat, term) :
-  forall _ : nat, term :=
+Definition up_term_term (sigma : nat -> term) : nat -> term :=
   scons (var var_zero) (funcomp (ren_term shift) sigma).
-Fixpoint subst_term (sigma_term : forall _ : nat, term) (s : term) : term :=
+Fixpoint subst_term (sigma_term : nat -> term) (s : term) : term :=
   match s with
   | var s0 => sigma_term s0
   | const s0 => const ((fun x => x) s0)
@@ -58,17 +51,17 @@ Fixpoint subst_term (sigma_term : forall _ : nat, term) (s : term) : term :=
   | Pi s0 s1 =>
       Pi (subst_term sigma_term s0) (subst_term (up_term_term sigma_term) s1)
   end.
-Definition upId_term_term (sigma : forall _ : nat, term)
-  (Eq : forall x, eq (sigma x) (var x)) :
-  forall x, eq (up_term_term sigma x) (var x) :=
+Definition upId_term_term (sigma : nat -> term)
+  (Eq : forall x, sigma x = var x) :
+  forall x, up_term_term sigma x = var x :=
   fun n =>
   match n with
   | S n' => ap (ren_term shift) (Eq n')
   | O => eq_refl
   end.
-Fixpoint idSubst_term (sigma_term : forall _ : nat, term)
-(Eq_term : forall x, eq (sigma_term x) (var x)) (s : term) :
-eq (subst_term sigma_term s) s :=
+Fixpoint idSubst_term (sigma_term : nat -> term)
+(Eq_term : forall x, sigma_term x = var x) (s : term) :
+subst_term sigma_term s = s :=
   match s with
   | var s0 => Eq_term s0
   | const s0 => congr_const ((fun x => eq_refl x) s0)
@@ -82,18 +75,16 @@ eq (subst_term sigma_term s) s :=
       congr_Pi (idSubst_term sigma_term Eq_term s0)
         (idSubst_term (up_term_term sigma_term) (upId_term_term _ Eq_term) s1)
   end.
-(* why not "ext_scons"? is "upExtRen_term_term" necessary ? *)
-Definition upExtRen_term_term (xi : forall _ : nat, nat)
-  (zeta : forall _ : nat, nat) (Eq : forall x, eq (xi x) (zeta x)) :
-  forall x, eq (upRen_term_term xi x) (upRen_term_term zeta x) :=
+Definition upExtRen_term_term (xi : nat -> nat) (zeta : nat -> nat)
+  (Eq : forall x, xi x = zeta x) :
+  forall x, upRen_term_term xi x = upRen_term_term zeta x :=
   fun n => match n with
            | S n' => ap shift (Eq n')
            | O => eq_refl
            end.
-Fixpoint extRen_term (xi_term : forall _ : nat, nat)
-(zeta_term : forall _ : nat, nat)
-(Eq_term : forall x, eq (xi_term x) (zeta_term x)) (s : term) :
-eq (ren_term xi_term s) (ren_term zeta_term s) :=
+Fixpoint extRen_term (xi_term : nat -> nat) (zeta_term : nat -> nat)
+(Eq_term : forall x, xi_term x = zeta_term x) (s : term) :
+ren_term xi_term s = ren_term zeta_term s :=
   match s with
   | var s0 => ap var (Eq_term s0)
   | const s0 => congr_const ((fun x => eq_refl x) s0)
@@ -109,20 +100,17 @@ eq (ren_term xi_term s) (ren_term zeta_term s) :=
         (extRen_term (upRen_term_term xi_term) (upRen_term_term zeta_term)
            (upExtRen_term_term _ _ Eq_term) s1)
   end.
-(* same comment as with "upExtRen_term_term".
-  why not "ext_scons eq_refl (fun x => ap (ren_term shift) (Eq x))". *)
-Definition upExt_term_term (sigma : forall _ : nat, term)
-  (tau : forall _ : nat, term) (Eq : forall x, eq (sigma x) (tau x)) :
-  forall x, eq (up_term_term sigma x) (up_term_term tau x) :=
+Definition upExt_term_term (sigma : nat -> term) (tau : nat -> term)
+  (Eq : forall x, sigma x = tau x) :
+  forall x, up_term_term sigma x = up_term_term tau x :=
   fun n =>
   match n with
   | S n' => ap (ren_term shift) (Eq n')
   | O => eq_refl
   end.
-Fixpoint ext_term (sigma_term : forall _ : nat, term)
-(tau_term : forall _ : nat, term)
-(Eq_term : forall x, eq (sigma_term x) (tau_term x)) (s : term) :
-eq (subst_term sigma_term s) (subst_term tau_term s) :=
+Fixpoint ext_term (sigma_term : nat -> term) (tau_term : nat -> term)
+(Eq_term : forall x, sigma_term x = tau_term x) (s : term) :
+subst_term sigma_term s = subst_term tau_term s :=
   match s with
   | var s0 => Eq_term s0
   | const s0 => congr_const ((fun x => eq_refl x) s0)
@@ -138,17 +126,15 @@ eq (subst_term sigma_term s) (subst_term tau_term s) :=
         (ext_term (up_term_term sigma_term) (up_term_term tau_term)
            (upExt_term_term _ _ Eq_term) s1)
   end.
-Definition up_ren_ren_term_term (xi : forall _ : nat, nat)
-  (zeta : forall _ : nat, nat) (rho : forall _ : nat, nat)
-  (Eq : forall x, eq (funcomp zeta xi x) (rho x)) :
+Definition up_ren_ren_term_term (xi : nat -> nat) (zeta : nat -> nat)
+  (rho : nat -> nat) (Eq : forall x, funcomp zeta xi x = rho x) :
   forall x,
-  eq (funcomp (upRen_term_term zeta) (upRen_term_term xi) x)
-    (upRen_term_term rho x) := up_ren_ren xi zeta rho Eq.
-Fixpoint compRenRen_term (xi_term : forall _ : nat, nat)
-(zeta_term : forall _ : nat, nat) (rho_term : forall _ : nat, nat)
-(Eq_term : forall x, eq (funcomp zeta_term xi_term x) (rho_term x))
-(s : term) :
-eq (ren_term zeta_term (ren_term xi_term s)) (ren_term rho_term s) :=
+  funcomp (upRen_term_term zeta) (upRen_term_term xi) x =
+  upRen_term_term rho x := up_ren_ren xi zeta rho Eq.
+Fixpoint compRenRen_term (xi_term : nat -> nat) (zeta_term : nat -> nat)
+(rho_term : nat -> nat)
+(Eq_term : forall x, funcomp zeta_term xi_term x = rho_term x) (s : term) :
+ren_term zeta_term (ren_term xi_term s) = ren_term rho_term s :=
   match s with
   | var s0 => ap var (Eq_term s0)
   | const s0 => congr_const ((fun x => eq_refl x) s0)
@@ -166,22 +152,19 @@ eq (ren_term zeta_term (ren_term xi_term s)) (ren_term rho_term s) :=
            (upRen_term_term zeta_term) (upRen_term_term rho_term)
            (up_ren_ren _ _ _ Eq_term) s1)
   end.
-Definition up_ren_subst_term_term (xi : forall _ : nat, nat)
-  (tau : forall _ : nat, term) (theta : forall _ : nat, term)
-  (Eq : forall x, eq (funcomp tau xi x) (theta x)) :
+Definition up_ren_subst_term_term (xi : nat -> nat) (tau : nat -> term)
+  (theta : nat -> term) (Eq : forall x, funcomp tau xi x = theta x) :
   forall x,
-  eq (funcomp (up_term_term tau) (upRen_term_term xi) x)
-    (up_term_term theta x) :=
+  funcomp (up_term_term tau) (upRen_term_term xi) x = up_term_term theta x :=
   fun n =>
   match n with
   | S n' => ap (ren_term shift) (Eq n')
   | O => eq_refl
   end.
-Fixpoint compRenSubst_term (xi_term : forall _ : nat, nat)
-(tau_term : forall _ : nat, term) (theta_term : forall _ : nat, term)
-(Eq_term : forall x, eq (funcomp tau_term xi_term x) (theta_term x))
-(s : term) :
-eq (subst_term tau_term (ren_term xi_term s)) (subst_term theta_term s) :=
+Fixpoint compRenSubst_term (xi_term : nat -> nat) (tau_term : nat -> term)
+(theta_term : nat -> term)
+(Eq_term : forall x, funcomp tau_term xi_term x = theta_term x) (s : term) :
+subst_term tau_term (ren_term xi_term s) = subst_term theta_term s :=
   match s with
   | var s0 => Eq_term s0
   | const s0 => congr_const ((fun x => eq_refl x) s0)
@@ -199,12 +182,12 @@ eq (subst_term tau_term (ren_term xi_term s)) (subst_term theta_term s) :=
            (up_term_term theta_term) (up_ren_subst_term_term _ _ _ Eq_term)
            s1)
   end.
-Definition up_subst_ren_term_term (sigma : forall _ : nat, term)
-  (zeta_term : forall _ : nat, nat) (theta : forall _ : nat, term)
-  (Eq : forall x, eq (funcomp (ren_term zeta_term) sigma x) (theta x)) :
+Definition up_subst_ren_term_term (sigma : nat -> term)
+  (zeta_term : nat -> nat) (theta : nat -> term)
+  (Eq : forall x, funcomp (ren_term zeta_term) sigma x = theta x) :
   forall x,
-  eq (funcomp (ren_term (upRen_term_term zeta_term)) (up_term_term sigma) x)
-    (up_term_term theta x) :=
+  funcomp (ren_term (upRen_term_term zeta_term)) (up_term_term sigma) x =
+  up_term_term theta x :=
   fun n =>
   match n with
   | S n' =>
@@ -218,13 +201,11 @@ Definition up_subst_ren_term_term (sigma : forall _ : nat, term)
            (ap (ren_term shift) (Eq n')))
   | O => eq_refl
   end.
-Fixpoint compSubstRen_term (sigma_term : forall _ : nat, term)
-(zeta_term : forall _ : nat, nat) (theta_term : forall _ : nat, term)
-(Eq_term : forall x,
-           eq (funcomp (ren_term zeta_term) sigma_term x) (theta_term x))
+Fixpoint compSubstRen_term (sigma_term : nat -> term)
+(zeta_term : nat -> nat) (theta_term : nat -> term)
+(Eq_term : forall x, funcomp (ren_term zeta_term) sigma_term x = theta_term x)
 (s : term) :
-eq (ren_term zeta_term (subst_term sigma_term s)) (subst_term theta_term s)
-:=
+ren_term zeta_term (subst_term sigma_term s) = subst_term theta_term s :=
   match s with
   | var s0 => Eq_term s0
   | const s0 => congr_const ((fun x => eq_refl x) s0)
@@ -244,12 +225,12 @@ eq (ren_term zeta_term (subst_term sigma_term s)) (subst_term theta_term s)
            (upRen_term_term zeta_term) (up_term_term theta_term)
            (up_subst_ren_term_term _ _ _ Eq_term) s1)
   end.
-Definition up_subst_subst_term_term (sigma : forall _ : nat, term)
-  (tau_term : forall _ : nat, term) (theta : forall _ : nat, term)
-  (Eq : forall x, eq (funcomp (subst_term tau_term) sigma x) (theta x)) :
+Definition up_subst_subst_term_term (sigma : nat -> term)
+  (tau_term : nat -> term) (theta : nat -> term)
+  (Eq : forall x, funcomp (subst_term tau_term) sigma x = theta x) :
   forall x,
-  eq (funcomp (subst_term (up_term_term tau_term)) (up_term_term sigma) x)
-    (up_term_term theta x) :=
+  funcomp (subst_term (up_term_term tau_term)) (up_term_term sigma) x =
+  up_term_term theta x :=
   fun n =>
   match n with
   | S n' =>
@@ -264,13 +245,12 @@ Definition up_subst_subst_term_term (sigma : forall _ : nat, term)
                  (sigma n'))) (ap (ren_term shift) (Eq n')))
   | O => eq_refl
   end.
-Fixpoint compSubstSubst_term (sigma_term : forall _ : nat, term)
-(tau_term : forall _ : nat, term) (theta_term : forall _ : nat, term)
+Fixpoint compSubstSubst_term (sigma_term : nat -> term)
+(tau_term : nat -> term) (theta_term : nat -> term)
 (Eq_term : forall x,
-           eq (funcomp (subst_term tau_term) sigma_term x) (theta_term x))
+           funcomp (subst_term tau_term) sigma_term x = theta_term x)
 (s : term) :
-eq (subst_term tau_term (subst_term sigma_term s)) (subst_term theta_term s)
-:=
+subst_term tau_term (subst_term sigma_term s) = subst_term theta_term s :=
   match s with
   | var s0 => Eq_term s0
   | const s0 => congr_const ((fun x => eq_refl x) s0)
@@ -291,20 +271,17 @@ eq (subst_term tau_term (subst_term sigma_term s)) (subst_term theta_term s)
            (up_term_term tau_term) (up_term_term theta_term)
            (up_subst_subst_term_term _ _ _ Eq_term) s1)
   end.
-Definition rinstInst_up_term_term (xi : forall _ : nat, nat)
-  (sigma : forall _ : nat, term)
-  (Eq : forall x, eq (funcomp var xi x) (sigma x)) :
-  forall x,
-  eq (funcomp var (upRen_term_term xi) x) (up_term_term sigma x) :=
+Definition rinstInst_up_term_term (xi : nat -> nat) (sigma : nat -> term)
+  (Eq : forall x, funcomp var xi x = sigma x) :
+  forall x, funcomp var (upRen_term_term xi) x = up_term_term sigma x :=
   fun n =>
   match n with
   | S n' => ap (ren_term shift) (Eq n')
   | O => eq_refl
   end.
-Fixpoint rinst_inst_term (xi_term : forall _ : nat, nat)
-(sigma_term : forall _ : nat, term)
-(Eq_term : forall x, eq (funcomp var xi_term x) (sigma_term x))
-(s : term) : eq (ren_term xi_term s) (subst_term sigma_term s) :=
+Fixpoint rinst_inst_term (xi_term : nat -> nat) (sigma_term : nat -> term)
+(Eq_term : forall x, funcomp var xi_term x = sigma_term x) (s : term) :
+ren_term xi_term s = subst_term sigma_term s :=
   match s with
   | var s0 => Eq_term s0
   | const s0 => congr_const ((fun x => eq_refl x) s0)
@@ -320,89 +297,85 @@ Fixpoint rinst_inst_term (xi_term : forall _ : nat, nat)
         (rinst_inst_term (upRen_term_term xi_term) (up_term_term sigma_term)
            (rinstInst_up_term_term _ _ Eq_term) s1)
   end.
-Lemma rinstInst_term (xi_term : forall _ : nat, nat) :
-  eq (ren_term xi_term) (subst_term (funcomp var xi_term)).
+Lemma rinstInst_term (xi_term : nat -> nat) :
+  ren_term xi_term = subst_term (funcomp var xi_term).
 Proof.
 exact (FunctionalExtensionality.functional_extensionality _ _
                 (fun x => rinst_inst_term xi_term _ (fun n => eq_refl) x)).
 Qed.
-Lemma instId_term : eq (subst_term var) id.
+Lemma instId_term : subst_term var = id.
 Proof.
 exact (FunctionalExtensionality.functional_extensionality _ _
                 (fun x => idSubst_term var (fun n => eq_refl) (id x))).
 Qed.
-Lemma rinstId_term : eq (@ren_term id) id.
+Lemma rinstId_term : @ren_term id = id.
 Proof.
 exact (eq_trans (rinstInst_term (id _)) instId_term).
 Qed.
-Lemma varL_term (sigma_term : forall _ : nat, term) :
-  eq (funcomp (subst_term sigma_term) var) sigma_term.
+Lemma varL_term (sigma_term : nat -> term) :
+  funcomp (subst_term sigma_term) var = sigma_term.
 Proof.
 exact (FunctionalExtensionality.functional_extensionality _ _
                 (fun x => eq_refl)).
 Qed.
-Lemma varLRen_term (xi_term : forall _ : nat, nat) :
-  eq (funcomp (ren_term xi_term) var) (funcomp var xi_term).
+Lemma varLRen_term (xi_term : nat -> nat) :
+  funcomp (ren_term xi_term) var = funcomp var xi_term.
 Proof.
 exact (FunctionalExtensionality.functional_extensionality _ _
                 (fun x => eq_refl)).
 Qed.
-Lemma renRen_term (xi_term : forall _ : nat, nat)
-  (zeta_term : forall _ : nat, nat) (s : term) :
-  eq (ren_term zeta_term (ren_term xi_term s))
-    (ren_term (funcomp zeta_term xi_term) s).
+Lemma renRen_term (xi_term : nat -> nat) (zeta_term : nat -> nat) (s : term)
+  :
+  ren_term zeta_term (ren_term xi_term s) =
+  ren_term (funcomp zeta_term xi_term) s.
 Proof.
 exact (compRenRen_term xi_term zeta_term _ (fun n => eq_refl) s).
 Qed.
-Lemma renRen'_term (xi_term : forall _ : nat, nat)
-  (zeta_term : forall _ : nat, nat) :
-  eq (funcomp (ren_term zeta_term) (ren_term xi_term))
-    (ren_term (funcomp zeta_term xi_term)).
+Lemma renRen'_term (xi_term : nat -> nat) (zeta_term : nat -> nat) :
+  funcomp (ren_term zeta_term) (ren_term xi_term) =
+  ren_term (funcomp zeta_term xi_term).
 Proof.
 exact (FunctionalExtensionality.functional_extensionality _ _
                 (fun n => renRen_term xi_term zeta_term n)).
 Qed.
-Lemma compRen_term (sigma_term : forall _ : nat, term)
-  (zeta_term : forall _ : nat, nat) (s : term) :
-  eq (ren_term zeta_term (subst_term sigma_term s))
-    (subst_term (funcomp (ren_term zeta_term) sigma_term) s).
+Lemma compRen_term (sigma_term : nat -> term) (zeta_term : nat -> nat)
+  (s : term) :
+  ren_term zeta_term (subst_term sigma_term s) =
+  subst_term (funcomp (ren_term zeta_term) sigma_term) s.
 Proof.
 exact (compSubstRen_term sigma_term zeta_term _ (fun n => eq_refl) s).
 Qed.
-Lemma compRen'_term (sigma_term : forall _ : nat, term)
-  (zeta_term : forall _ : nat, nat) :
-  eq (funcomp (ren_term zeta_term) (subst_term sigma_term))
-    (subst_term (funcomp (ren_term zeta_term) sigma_term)).
+Lemma compRen'_term (sigma_term : nat -> term) (zeta_term : nat -> nat) :
+  funcomp (ren_term zeta_term) (subst_term sigma_term) =
+  subst_term (funcomp (ren_term zeta_term) sigma_term).
 Proof.
 exact (FunctionalExtensionality.functional_extensionality _ _
                 (fun n => compRen_term sigma_term zeta_term n)).
 Qed.
-Lemma renComp_term (xi_term : forall _ : nat, nat)
-  (tau_term : forall _ : nat, term) (s : term) :
-  eq (subst_term tau_term (ren_term xi_term s))
-    (subst_term (funcomp tau_term xi_term) s).
+Lemma renComp_term (xi_term : nat -> nat) (tau_term : nat -> term) (s : term)
+  :
+  subst_term tau_term (ren_term xi_term s) =
+  subst_term (funcomp tau_term xi_term) s.
 Proof.
 exact (compRenSubst_term xi_term tau_term _ (fun n => eq_refl) s).
 Qed.
-Lemma renComp'_term (xi_term : forall _ : nat, nat)
-  (tau_term : forall _ : nat, term) :
-  eq (funcomp (subst_term tau_term) (ren_term xi_term))
-    (subst_term (funcomp tau_term xi_term)).
+Lemma renComp'_term (xi_term : nat -> nat) (tau_term : nat -> term) :
+  funcomp (subst_term tau_term) (ren_term xi_term) =
+  subst_term (funcomp tau_term xi_term).
 Proof.
 exact (FunctionalExtensionality.functional_extensionality _ _
                 (fun n => renComp_term xi_term tau_term n)).
 Qed.
-Lemma compComp_term (sigma_term : forall _ : nat, term)
-  (tau_term : forall _ : nat, term) (s : term) :
-  eq (subst_term tau_term (subst_term sigma_term s))
-    (subst_term (funcomp (subst_term tau_term) sigma_term) s).
+Lemma compComp_term (sigma_term : nat -> term) (tau_term : nat -> term)
+  (s : term) :
+  subst_term tau_term (subst_term sigma_term s) =
+  subst_term (funcomp (subst_term tau_term) sigma_term) s.
 Proof.
 exact (compSubstSubst_term sigma_term tau_term _ (fun n => eq_refl) s).
 Qed.
-Lemma compComp'_term (sigma_term : forall _ : nat, term)
-  (tau_term : forall _ : nat, term) :
-  eq (funcomp (subst_term tau_term) (subst_term sigma_term))
-    (subst_term (funcomp (subst_term tau_term) sigma_term)).
+Lemma compComp'_term (sigma_term : nat -> term) (tau_term : nat -> term) :
+  funcomp (subst_term tau_term) (subst_term sigma_term) =
+  subst_term (funcomp (subst_term tau_term) sigma_term).
 Proof.
 exact (FunctionalExtensionality.functional_extensionality _ _
                 (fun n => compComp_term sigma_term tau_term n)).

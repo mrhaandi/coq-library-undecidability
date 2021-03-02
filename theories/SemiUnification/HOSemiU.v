@@ -12,6 +12,7 @@
 
 Require Import List Relation_Operators.
 
+Require Import Undecidability.SemiUnification.autosubst.unscoped.
 Require Import Undecidability.SemiUnification.autosubst.pts.
 (* 
   terms (according to pure type systems) 
