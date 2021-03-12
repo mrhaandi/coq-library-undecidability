@@ -1,9 +1,12 @@
 (* * Intuitionistic FOL *)
 
 From Undecidability.Synthetic Require Import Definitions DecidabilityFacts EnumerabilityFacts ReducibilityFacts.
-From Undecidability.FOL Require Import Kripke PCPb_to_FOL.
+From Undecidability.FOL Require Import FOL Util.Kripke Util.Deduction Util.Syntax Util.Tarski PCPb_to_FOL.
 
-Require Import Undecidability.PCP.Reductions.PCPb_iff_dPCPb.
+From Undecidability.PCP Require Import PCP Reductions.PCPb_iff_dPCPb.
+
+Local Hint Constructors BPCP : core.
+
 (* ** Reductions *)
 
 Section kvalidity.
@@ -64,7 +67,7 @@ Qed.
 Corollary kvalid_undec :
   UA -> ~ decidable (@kvalid _ _ falsity_on).
 Proof.
-  intros H. now apply (not_decidable kvalid_red).
+  intros H. now apply (not_decidable kvalid_red). 
 Qed.
 
 Corollary kvalid_unenum :

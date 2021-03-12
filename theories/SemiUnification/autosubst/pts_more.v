@@ -66,6 +66,9 @@ Lemma ext_ren_term' {xi zeta P Q} :
   (forall x, xi x = zeta x) -> P = Q -> ren_term xi P = ren_term zeta Q.
 Proof. by move=> /extRen_term + ->. Qed.
 
+Fixpoint rinst_inst_term' {xi P} : ren_term xi P = subst_term (funcomp var xi) P.
+Proof. by apply: rinst_inst_term. Qed.
+
 (* TODO rinstId_term uses funext, which is bad *)
 (* alternative: ren_term_id *)
 Definition term_norm := (compRen_term, renRen_term, @ren_term_id, renComp_term, compComp_term).
@@ -75,9 +78,13 @@ Arguments funcomp {X Y Z} _ _ _ /.
 (* such that simpl evaluates id x*)
 Arguments unscoped.id _ _/.
 
-(* AUTOSUBST EXPERIMENTS *)
 
-Lemma ad {X Y: Type} {s: X} {f: nat -> Y} {g: Y -> X} {t: Y}: 
+
+
+(* AUTOSUBST EXPERIMENTS *)
+(* NOT RELEVANT FOR DEVELOPMENT *)
+
+Lemma some_funcomp_property {X Y: Type} {s: X} {f: nat -> Y} {g: Y -> X} {t: Y}: 
   s = g t ->
   forall x, scons s (funcomp g f) x = funcomp g (scons t f) x.
 Proof.
@@ -110,50 +117,67 @@ eq_trans
      (compSubstRen_term tau_term ↑ (tau_term >> ren_term ↑)
         (fun _ => eq_refl) s)).
 
-(*
-H is ren_term shift
-z is var 0
-
-F f : subst_term f
-G f : subst_term (up_term_term f)
-
-or
-
-F f : ren_term f
-G f : ren_term (upRen_term_term f)
-*)
-
 (* maybe this is even more general ? *)
 (* does not depend on term *)
-Definition more_general_principle3 {X Y : Type}
-  {sigma : nat -> Y} {F: (nat -> X) -> Y -> Y} {G: X -> X} {H: Y -> Y}
-  {tau_term : nat -> X} {theta : nat -> Y} {x: X} (y: Y)
-  (Eq : forall x, funcomp (F tau_term) sigma x = theta x)
-  (Eq1 : F (x .: tau_term >> G) y = y)
-  (Eq2 : forall s, F (x .: tau_term >> G) (H s) = F (tau_term >> G) s)
-  (Eq3 : forall s, H (F tau_term s) = F (tau_term >> G) s)
+Definition more_general_principle4 {X Y Z : Type}
+  {F : (nat -> X) -> Y -> Z}
+  {f : nat -> X} {g : nat -> Y} {h : nat -> Z}
+  {x : X} {y : Y} {z : Z}
+  {uX : X -> X} {uY : Y -> Y} {uZ : Z -> Z}
+  (Eq_h : forall n, (g >> F f) n = h n)
+  (Eq_z : F (x .: f >> uX) y = z)
+  (Eq1 : forall y', F (scons x (f >> uX)) (uY y') = F (f >> uX) y')
+  (Eq2 : forall y', uZ (F f y') = F (f >> uX) y')
   :
   forall (n: nat),
-  (funcomp (F (x .: tau_term >> G)) (scons y (sigma >> H)) n) = 
-  (scons y (theta >> H) n).
+  ((scons y (g >> uY)) >> F (scons x (f >> uX))) n = 
+  (scons z (h >> uZ)) n.
 Proof.
   intros [|n].
-  - apply Eq1.
-  - apply (eq_trans (Eq2 _)).
-    apply (eq_trans (eq_sym (Eq3 _))).
-    apply (ap H).
-    apply Eq.
+  - apply Eq_z.
+  - apply (eq_trans (Eq1 _)).
+    apply (eq_trans (eq_sym (Eq2 _))).
+    apply (ap uZ).
+    apply Eq_h.
+  Show Proof.
 Qed.
 
-(*showcase 1 more_general_principle3 *)
-Definition up_subst_subst_term_term_using_test (sigma : forall _ : nat, term)
+Definition up_ren_ren_term_term_p4 (xi : nat -> nat) (zeta : nat -> nat)
+  (rho : nat -> nat) (Eq : forall x, funcomp zeta xi x = rho x) :
+  forall x,
+  funcomp (upRen_term_term zeta) (upRen_term_term xi) x =
+  upRen_term_term rho x.
+Proof.
+  eapply (more_general_principle4 (F := id)).
+  - apply Eq.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+  Show Proof.
+Qed.
+
+Definition up_ren_subst_term_term_p4 (xi : nat -> nat) (tau : nat -> term)
+  (theta : nat -> term) (Eq : forall x, funcomp tau xi x = theta x) :
+  forall x,
+  funcomp (up_term_term tau) (upRen_term_term xi) x = up_term_term theta x.
+Proof.
+  eapply (more_general_principle4 (F := id)).
+  - apply Eq.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+  Show Proof.
+Qed.
+
+
+Definition up_subst_subst_term_term_p4 (sigma : forall _ : nat, term)
   (tau_term : forall _ : nat, term) (theta : forall _ : nat, term)
   (Eq : forall x, eq (funcomp (subst_term tau_term) sigma x) (theta x)) :
   forall x,
   eq (funcomp (subst_term (up_term_term tau_term)) (up_term_term sigma) x)
     (up_term_term theta x).
 Proof.
-  eapply (more_general_principle3).
+  eapply (more_general_principle4).
   exact Eq.
   reflexivity.
   apply compRenSubst_term.
@@ -163,15 +187,14 @@ Proof.
   Show Proof.
 Qed.
 
-(*showcase 2 more_general_principle3 *)
-Definition up_subst_ren_term_term (sigma : forall _ : nat, term)
+Definition up_subst_ren_term_term_p4 (sigma : forall _ : nat, term)
          (zeta_term : forall _ : nat, nat) (theta : forall _ : nat, term)
          (Eq : forall x, eq (funcomp (ren_term zeta_term) sigma x) (theta x)) :
          forall x,
          eq (funcomp (ren_term (upRen_term_term zeta_term)) (up_term_term sigma) x)
            (up_term_term theta x).
 Proof.
-  eapply (more_general_principle3).
+  eapply (more_general_principle4).
   exact Eq.
   reflexivity.
   apply compRenRen_term.
@@ -181,69 +204,15 @@ Proof.
   Show Proof.
 Qed.
 
-
-(* this is maybe the general lemma 
-independent of autosubst (unscoped)
-skeleton of the actual proof *)
-Definition more_general_principle2 {X Y : Type}
-  (sigma : nat -> Y) {F G: X -> Y -> Y} {H: Y -> Y}
-  (tau_term : X) (theta : nat -> Y) (z: Y)
-  (Eq : forall x, funcomp (F tau_term) sigma x = theta x)
-  (Eq1 : G tau_term z = z)
-  (Eq2 : forall s, G tau_term (H s) = H (F tau_term s))
-  :
-  forall (x: nat),
-  (funcomp (G tau_term) (scons z (sigma >> H)) x) = 
-  (scons z (theta >> H) x).
+(* not exactly rinstInst_up_term_term_p4, this is an instance of up_ren_subst_term_term_p4 
+while up_term_term var == var; see upId_term_term *)
+Definition rinstInst_up_term_term_p4 (xi : nat -> nat) (sigma : nat -> term)
+  (Eq : forall x, funcomp var xi x = sigma x) :
+  forall x, funcomp (up_term_term var) (upRen_term_term xi) x = up_term_term sigma x.
 Proof.
-  intros [|x].
-  - apply Eq1.
-  - eapply eq_trans.
-    apply Eq2.
-    apply (ap H). apply Eq.
-    Show Proof.
+  eapply (more_general_principle4 (F := id)).
+  - exact Eq.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
 Qed.
-
-(*showcase 1 more_general_principle2 *)
-Definition up_subst_subst_term_term_using_test' (sigma : forall _ : nat, term)
-  (tau_term : forall _ : nat, term) (theta : forall _ : nat, term)
-  (Eq : forall x, eq (funcomp (subst_term tau_term) sigma x) (theta x)) :
-  forall x,
-  eq (funcomp (subst_term (up_term_term tau_term)) (up_term_term sigma) x)
-    (up_term_term theta x).
-Proof.
-  eapply (more_general_principle2 _ _ (G := (fun tau_term => subst_term (up_term_term tau_term)))). 
-  exact Eq.
-  reflexivity.
-  apply up_subst_subst_term_term_underlying.
-  Show Proof.
-Qed.
-
-(*showcase 2 more_general_principle2 *)
-Definition up_subst_ren_term_term' (sigma : forall _ : nat, term)
-         (zeta_term : forall _ : nat, nat) (theta : forall _ : nat, term)
-         (Eq : forall x, eq (funcomp (ren_term zeta_term) sigma x) (theta x)) :
-         forall x,
-         eq (funcomp (ren_term (upRen_term_term zeta_term)) (up_term_term sigma) x)
-           (up_term_term theta x).
-Proof.
-  eapply (more_general_principle2 _ _ (G := (fun zeta_term => ren_term (upRen_term_term zeta_term)))).
-  exact Eq.
-  reflexivity.
-  apply up_subst_ren_term_term_underlying.
-  Show Proof.
-Qed.
-           
-
-Definition up_subst_subst_term_term (sigma : forall _ : nat, term)
-  (tau_term : forall _ : nat, term) (theta : forall _ : nat, term)
-  (Eq : forall x, eq (funcomp (subst_term tau_term) sigma x) (theta x)) :
-  forall x,
-  eq (funcomp (subst_term (up_term_term tau_term)) (up_term_term sigma) x)
-    (up_term_term theta x) :=
-  fun x => match x with
-    | 0 => eq_refl
-    | S x' =>
-        eq_trans (up_subst_subst_term_term_underlying tau_term (sigma x'))
-          (ap (ren_term ↑) (Eq x'))
-    end.

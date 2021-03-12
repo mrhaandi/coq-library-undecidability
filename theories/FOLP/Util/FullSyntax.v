@@ -164,10 +164,13 @@ Proof. exact ((FunctionalExtensionality.functional_extensionality _ _ ) (fun n =
 
 End fix_sig.
 
+#[global] 
 Instance Subst_term (Sigma : Signature)   : Subst1 ((nat)  -> term ) (term ) (term ) := @subst_term Sigma.
 
+#[global] 
 Instance Subst_form (Sigma : Signature)   : Subst1 ((nat)  -> term ) (form ) (form ) := @subst_form Sigma.
 
+#[global] 
 Instance VarInstance_term (Sigma : Signature) : Var ((nat) ) (term ) := @var_term Sigma.
 
 Notation "x '__term'" := (var_term x) (at level 5, format "x __term") : subst_scope.
@@ -182,6 +185,7 @@ Notation "↑__term" := (up_term) (only printing) : subst_scope.
 
 Notation "↑__term" := (up_term_term) (only printing) : subst_scope.
 
+#[global] 
 Instance Up_term_term (Sigma : Signature)   : Up_term (_) (_) := @up_term_term Sigma.
 
 Notation "s [ sigmaterm ]" := (subst_term sigmaterm s) (at level 7, left associativity, format "s '/' [ sigmaterm ]", only printing) : subst_scope.
@@ -205,13 +209,3 @@ Tactic Notation "asimpl" "in" hyp(J) := revert J; asimpl; intros J.
 Tactic Notation "auto_case" := auto_case (asimpl; cbn; eauto).
 
 Tactic Notation "asimpl" "in" "*" := auto_unfold in *; repeat first [progress rewrite ?instId_term in *| progress rewrite ?term in *| progress rewrite ?compComp_term in *| progress rewrite ?compComp'_term in *| progress rewrite ?instId_form in *| progress rewrite ?form in *| progress rewrite ?compComp_form in *| progress rewrite ?compComp'_form in *| progress rewrite ?varL_term in *| progress (unfold up_ren, up_term_term)| progress (cbn [subst_term subst_form] in *)| fsimpl in *].
-
-
-
-
-
-  
-
-                                                                     
-
-                                                                     
