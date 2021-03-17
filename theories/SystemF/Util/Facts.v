@@ -123,10 +123,6 @@ Proof.
     + constructor; last done. by case: (PeanoNat.Nat.eq_dec _ _).
 Qed.
 
-Lemma repeat_appP {X: Type} {x: X} {n m: nat} : 
-  repeat x n ++ repeat x m = repeat x (n+m).
-Proof. by elim: n; [| move=> ? /= ->]. Qed.
-
 Lemma map_id' {X: Type} {f: X -> X} {l: list X} : (forall x, f x = x) -> map f l = l.
 Proof. move=> ?. rewrite -[RHS]map_id. by apply: map_ext => ?. Qed.
 

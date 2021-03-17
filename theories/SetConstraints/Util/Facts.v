@@ -105,17 +105,6 @@ Proof.
   by rewrite (ltac:(lia) : S length = length + 1) seq_app.
 Qed.
 
-(* repeat facts *)
-Lemma repeat_add {X : Type} {x : X} {m n} : repeat x (m + n) = repeat x m ++ repeat x n.
-Proof. elim: m; [done | by move=> ? /= ->]. Qed.
-
-Lemma Forall_repeat {X: Type} {a} {A: list X} : Forall (fun b => a = b) A -> A = repeat a (length A).
-Proof.
-  elim: A; first done.
-  move=> b A IH. rewrite Forall_norm => [[? /IH ->]]. subst b.
-  cbn. by rewrite repeat_length.
-Qed.
-
 (* bijection between nat and nat * nat *)
 Module NatNat.
 

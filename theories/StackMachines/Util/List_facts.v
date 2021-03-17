@@ -20,23 +20,13 @@ Proof.
   move=> x l /=. by rewrite /nth_error -?/(nth_error _ _).
 Qed.
 
-Lemma nth_error_seq {m l n: nat} :
-  n < l -> nth_error (seq m l) n = Some (m+n).
-Proof.
-  elim: n m l.
-  - move=> m [|l]; first by lia.
-    move=> /= _. congr Some. by lia.
-  - move=> n IH m [|l /= ?]; first by lia.
-    rewrite /nth_error -/(nth_error _ _) IH; [|congr Some]; by lia.
-Qed.
-
 Lemma repeat_appP {X: Type} {x: X} {n m: nat} : 
   repeat x n ++ repeat x m = repeat x (n+m).
-Proof. by elim: n; [| move=> ? /= ->]. Qed.
+Proof. exact (eq_sym (repeat_app _ _ _)). Qed.
 
 Lemma repeat_app_appP {X: Type} {x: X} {xs: list X} {n m: nat} : 
   repeat x n ++ (repeat x m ++ xs) = repeat x (n+m) ++ xs.
-Proof. by rewrite -repeat_appP app_assoc. Qed.
+Proof. by rewrite repeat_app app_assoc. Qed.
 
 Lemma repeat_singP {X: Type} {x: X} : 
   [x] = repeat x 1.

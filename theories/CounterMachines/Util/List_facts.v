@@ -74,17 +74,10 @@ Proof.
   move=> x l /=. by rewrite /nth_error -?/(nth_error _ _).
 Qed.
 
-Lemma nth_error_seq {m l n: nat} :
-  n < l -> nth_error (seq m l) n = Some (m+n).
+Lemma nth_error_repeat {X: Type} {x: X} {n m: nat} : 
+  m < n -> nth_error (repeat x n) m = Some x.
 Proof.
-  elim: n m l.
-  { move=> m [|l]; first by lia.
-    move=> /= _. congr Some. by lia. }
-  move=> n IH m [|l /= ?]; first by lia.
-  rewrite /nth_error -/(nth_error _ _) IH; [|congr Some]; by lia.
-Qed.
-
-Lemma nth_repeat {X: Type} {x: X} {n m: nat}: nth n (repeat x m) x = x.
-Proof.
-  elim: n m; [by case | by move=> n IH [|m /=]].
+  elim: m n; first by move=> [|?]; [lia|].
+  move=> m IH [|n] ?; first by lia.
+  apply: IH. by lia.
 Qed.

@@ -92,7 +92,7 @@ Lemma nat_sat {m n} :
   (map (fun i => m + i) (tower m n)) ++ (repeat 0 (4^n)) ≡ [m*n] ++ (tower m n) ++ (tower m n) ++ (tower m n) ++ (tower m n).
 Proof.
   elim: n; first by (have -> : m * 0 = 0 by lia).
-  move=> n IH /=. rewrite ?map_app ?repeat_add /= app_nil_r.
+  move=> n IH /=. rewrite ?map_app ?repeat_app /= app_nil_r.
   pose L := (map (fun i => m + i) (tower m n)) ++ (repeat 0 (4^n)).
   pose R := [m*n] ++ (tower m n) ++ (tower m n) ++ (tower m n) ++ (tower m n).
   have -> : m + m * n = m * (S n) by nia.
@@ -345,7 +345,9 @@ Proof.
   apply: unnest; first by apply: eq_appI.
   move=> HX6. have HlX0 : length (X 0) = n.
   { move: HX6 => /eq_length. rewrite ? app_length map_length seq_length. by lia. }
-  move: HX6 => /eq_symm. have -> := Forall_repeat HX0. rewrite HlX0. 
+  move: HX6 => /eq_symm. have ->: X 0 = repeat 0 n.
+  { rewrite -HlX0. elim: (X 0) HX0; first done.
+    by move=> ? ? IH /Forall_cons_iff [<- /IH] /= <-. }
   move /square_spec => ? /eq_length. rewrite ?app_length map_length repeat_length.
   by lia.
 Qed.
@@ -381,7 +383,7 @@ Proof.
   elim: n; first done.
   move=> n IH.
   rewrite /pyramid ? seq_last /plus ? (flat_map_concat_map, map_app, concat_app, app_length).
-  rewrite -?flat_map_concat_map -/pyramid -/(pyramid _) ?repeat_add seq_length /= ?app_nil_r.
+  rewrite -?flat_map_concat_map -/pyramid -/(pyramid _) ?repeat_app seq_length /= ?app_nil_r.
   apply /(eq_lr 
     (A' := (pyramid n ++ flat_map pyramid (seq 0 n)) ++ (seq 0 n ++ pyramid n))
     (B' := (repeat 0 (length (pyramid n)) ++ map S (flat_map pyramid (seq 0 n))) ++ (repeat 0 n ++ map S (pyramid n))));
@@ -394,8 +396,7 @@ Lemma encode_nat_sat {φ x} :
   mset_sat (construct_valuation φ) (encode_nat x).
 Proof.
   rewrite /encode_nat /mset_sat ?Forall_norm /mset_sem  /construct_valuation ?embed_unembed.
-  rewrite -?repeat_add.
-  constructor.
+  rewrite -?repeat_app. constructor.
   { apply: eq_eq. f_equal. have := pyramid_length (φ x). by lia. }
   constructor.
   { apply: eq_eq. f_equal. have := pyramid_length (φ x). by lia. }
@@ -436,7 +437,7 @@ Proof.
   do 3 (constructor; first by apply: encode_nat_sat).
   rewrite /mset_sem /construct_valuation ? embed_unembed.
   have ->: [0] = repeat 0 1 by done.
-  rewrite -?repeat_add. apply: eq_eq. f_equal. move: Hxyz=> <-. clear. 
+  rewrite -?repeat_app. apply: eq_eq. f_equal. move: Hxyz=> <-. clear. 
   elim: (φ y); clear; first by (move=> /=; lia).
   move=> φy IH. 
   rewrite /pyramid seq_last /(plus 0 _) flat_map_concat_map map_app concat_app.

@@ -66,7 +66,7 @@ Section MM2_CM2.
     elim: n; first done.
     move=> n + /= ? => ->; first by lia.
     rewrite /= /M nth_error_app1 ?repeat_length; first by lia.
-    rewrite (nth_error_nth' _  (CM2.inc false)) ?repeat_length ?nth_repeat; [by lia | done].
+    by rewrite nth_error_repeat; [lia|].
   Qed.
 
   Lemma init_M_b0 (n: nat) : n <= b0 -> Nat.iter n (CM2.step M) {| CM2.state := a0; CM2.value1 := a0; CM2.value2 := 0 |} = 
@@ -76,7 +76,7 @@ Section MM2_CM2.
     move=> n + /= ? => ->; first by lia.
     rewrite /= /M nth_error_app2 ?repeat_length; first by lia.
     rewrite nth_error_app1 ?repeat_length; first by lia.
-    rewrite (nth_error_nth' _  (CM2.inc true)) ?repeat_length ?nth_repeat; [by lia | done].
+    by rewrite nth_error_repeat; [lia|].
   Qed.
 
   (* after a0 + b0 steps the counters of M are initialized to a0, b0 *)
