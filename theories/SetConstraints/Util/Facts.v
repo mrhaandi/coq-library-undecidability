@@ -99,12 +99,6 @@ Proof.
   - move=> a A IH. by rewrite /flat_map -/(flat_map _ _) ? Forall_norm IH.
 Qed.
 
-(* seq facts *)
-Lemma seq_last start length : seq start (S length) = (seq start length) ++ [start + length].
-Proof.
-  by rewrite (ltac:(lia) : S length = length + 1) seq_app.
-Qed.
-
 (* bijection between nat and nat * nat *)
 Module NatNat.
 

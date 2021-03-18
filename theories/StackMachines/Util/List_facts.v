@@ -7,9 +7,6 @@ Require Import ssreflect ssrbool ssrfun.
 
 Set Default Goal Selector "!".
 
-Lemma seq_last {m n} : seq m (1+n) = seq m n ++ [m + n].
-Proof. have -> : 1+n = n+1 by lia. by rewrite seq_app. Qed.
-
 (* nth_error facts *)
 
 Lemma nth_error_map {X Y: Type} {f: X -> Y} {l: list X} {n: nat} :

@@ -767,7 +767,7 @@ Section Reduction.
     case; first done. move=> He. exfalso.
     have /CM_facts.acyclicity : not (CM.halting P (Nat.iter NM (CM.step P) cm_start)) by rewrite HNM.
     set f := (fun i : nat => Nat.iter i (CM1.step P) cm_start).
-    rewrite seq_last map_app. move /(@NoDup_remove CM1.Config) => [+ _]. rewrite app_nil_r.
+    rewrite seq_S map_app. move /(@NoDup_remove CM1.Config) => [+ _]. rewrite app_nil_r.
     have [L [H1L H2L]] := NM_spec ([§1], [§0] ++ [§1] ++ §0^(CM.value cm_end - 1), '#?0).
     set g : _ -> SM.Config := (fun X => ([§1], §0^(CM.value X) ++ [§1] ++ §0^(CM.value cm_end - (CM.value X)), '#? (CM.state X))).
     move /(NoDup_map (f := g)). apply: unnest.

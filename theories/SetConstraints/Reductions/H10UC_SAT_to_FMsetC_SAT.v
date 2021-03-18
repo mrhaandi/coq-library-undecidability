@@ -148,7 +148,7 @@ Proof.
   move=> A. elim: n.
   { apply /eq_eq. cbn. f_equal. by nia. }
   move=> n IH.
-  rewrite /A seq_last ? map_app -/(A n) /plus -/plus.
+  rewrite /A seq_S ? map_app -/(A n) /plus -/plus.
   rewrite /(map _ [n]) /(map _ [S d * n]).
   have -> : S (d + S d * n) = S d * S n by lia.
   under map_ext => i do rewrite -/(plus (S d) i).
@@ -166,7 +166,7 @@ Proof.
   have -> : S = (fun i => (S 0) + i) by done.
   have -> : seq 0 n = map (fun i => (S 0) * i) (seq 0 n).
   { elim: n; first done.
-    move=> n IH. rewrite seq_last map_app - IH /=.
+    move=> n IH. rewrite seq_S map_app - IH /=.
     by rewrite Nat.add_0_r. }
   have -> : [n] = [1*n] by f_equal; lia.
   by apply: seq_sat2.
@@ -183,14 +183,14 @@ Definition unify_sat n :
 Proof.
   elim: n; first by exists [].
   set f := (fun i => 2*i). move=> n [A HA]. exists (A ++ seq n n).
-  rewrite ?seq_last ?map_app /=.
+  rewrite ?seq_S ?map_app /=.
   apply /(eq_lr
     (A' := (A ++ map f (seq 0 n)) ++  (seq n n ++ [f n]))
     (B' := (seq 0 n ++ map S A) ++ ([n] ++ map S (seq n n))));
     [by eq_trivial | by eq_trivial |].
   apply: eq_appI; first done.
   rewrite /f. have ->: 2 * n = n + n by lia.
-  apply: eq_eq. by rewrite seq_shift -seq_last.
+  apply: eq_eq. by rewrite seq_shift -seq_S.
 Qed.
 
 (* embed nat^3 into nat to provide fresh variables *)
@@ -307,7 +307,7 @@ Proof.
   { rewrite ? map_app map_cons. by eq_trivial. }
   move /eq_cons_iff => /IH [A' [? ?]].
   exists A'. constructor; last done.
-  rewrite seq_last /=.
+  rewrite seq_S /=.
   apply /(eq_lr (A' := n :: (A1 ++ A2)) (B' := n :: (seq 0 n ++ A')));
     [by eq_trivial | by eq_trivial | ].
   by apply /eq_cons_iff.
@@ -319,7 +319,7 @@ Lemma square_spec {n A} : (seq 0 n) ++ A ≡ (repeat 0 n) ++ (map S A) ->
 Proof.
   elim: n A.
   { move=> A /eq_symm /eq_mapE ->; [by lia | done]. }
-  move=> n IH A. rewrite seq_last /(plus 0 _).
+  move=> n IH A. rewrite seq_S /(plus 0 _).
   move /(eq_lr _ eq_refl (A' := seq 0 n ++ (n :: A))) => /(_ ltac:(by eq_trivial)).
   move /square_spec_aux => [A' [/eq_length + /IH]].
   rewrite app_length seq_length. by lia. 
@@ -356,13 +356,13 @@ Lemma pyramid_shuffle {n} : seq 0 n ++ pyramid n ≡ repeat 0 n ++ map S (pyrami
 Proof.
   elim: n; first done.
   move=> n IH.
-  rewrite /pyramid seq_last /plus flat_map_concat_map map_app concat_app.
+  rewrite /pyramid seq_S /plus flat_map_concat_map map_app concat_app.
   rewrite -flat_map_concat_map -/(pyramid _) ? map_app /= ? app_nil_r seq_shift.
   apply /(eq_lr 
     (A' := (seq 0 n ++ [n]) ++ (seq 0 n ++ pyramid n)) 
     (B' := (0 :: seq 1 n) ++ (repeat 0 n ++ map S (pyramid n))));
     [ by eq_trivial | by eq_trivial | ].
-  rewrite -seq_last -/(seq _ (S n)).
+  rewrite -seq_S -/(seq _ (S n)).
   by apply /eq_app_iff.
 Qed.
 
@@ -370,7 +370,7 @@ Lemma pyramid_length n : n + length (pyramid n) <= 4 ^ n.
 Proof.
   elim: n; first by (move=> /=; lia).
   move=> n IH. 
-  rewrite /pyramid seq_last /plus -/plus flat_map_concat_map map_app concat_app app_length.
+  rewrite /pyramid seq_S /plus -/plus flat_map_concat_map map_app concat_app app_length.
   rewrite -flat_map_concat_map -/(pyramid _).
   rewrite /map /concat app_length seq_length /=.
   have := Nat.pow_gt_lin_r 4 n ltac:(lia).
@@ -382,7 +382,7 @@ Lemma encode_nat_sat_aux {n} :
 Proof.
   elim: n; first done.
   move=> n IH.
-  rewrite /pyramid ? seq_last /plus ? (flat_map_concat_map, map_app, concat_app, app_length).
+  rewrite /pyramid ? seq_S /plus ? (flat_map_concat_map, map_app, concat_app, app_length).
   rewrite -?flat_map_concat_map -/pyramid -/(pyramid _) ?repeat_app seq_length /= ?app_nil_r.
   apply /(eq_lr 
     (A' := (pyramid n ++ flat_map pyramid (seq 0 n)) ++ (seq 0 n ++ pyramid n))
@@ -440,7 +440,7 @@ Proof.
   rewrite -?repeat_app. apply: eq_eq. f_equal. move: Hxyz=> <-. clear. 
   elim: (φ y); clear; first by (move=> /=; lia).
   move=> φy IH. 
-  rewrite /pyramid seq_last /(plus 0 _) flat_map_concat_map map_app concat_app.
+  rewrite /pyramid seq_S /(plus 0 _) flat_map_concat_map map_app concat_app.
   rewrite -flat_map_concat_map -/(pyramid _) /= ?app_length seq_length /=. by lia.
 Qed.
 
