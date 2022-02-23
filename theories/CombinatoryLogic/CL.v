@@ -2,6 +2,465 @@ From Undecidability Require L.L.
 Require Import List Lia.
 Import L (var, app, lam).
 
+(* back to exponential construction now with eval *)
+
+Inductive eterm : Type :=
+  | eK : eterm
+  | eS : eterm
+  | evar (n : nat) : eterm
+  | eapp (s : eterm) (t : eterm) : eterm.
+
+(* stream cons *)
+Definition scons {X: Type} (x : X) (xi : nat -> X) :=
+  fun n => match n with | 0 => x | S n => xi n end.
+
+Fixpoint eren (xi : nat -> nat) (t : eterm) : eterm  :=
+  match t with
+  | evar x => evar (xi x)
+  | eapp s t => eapp (eren xi s) (eren xi t)
+  | _ => t
+  end.
+
+(* variable capturing substitution : bad idea *)
+Fixpoint esubst' (s : eterm) (k : nat) (u : eterm) :=
+  match s with
+    | evar n => if Nat.eqb n k then u else evar n
+    | eapp s t => eapp (esubst' s k u) (esubst' t k u)
+    | _ => s
+  end.
+
+Definition closed' s := forall n t, esubst' s n t = s.
+
+Inductive evalue : eterm -> Prop :=
+  | evalue_K0 : evalue eK
+  | evalue_K1 t : evalue (eapp eK t)
+  | evalue_S0 : evalue eS
+  | evalue_S1 t : evalue (eapp eS t)
+  | evalue_S2 s t : evalue (eapp (eapp eS s) t).
+
+(* capturing definitions *)
+
+Inductive estep : eterm -> eterm -> Prop :=
+  | estepK  s t       : evalue t -> estep (eapp (eapp eK s) t) s
+  | estepS  s t u     : evalue u -> estep (eapp (eapp (eapp eS s) t) u) (eapp (eapp s u) (eapp t u))
+  (* wrong because reduces s in (K s) *)
+  | estepAppR s t  t' : estep t t' -> estep (eapp s t) (eapp s t')
+  | estepAppL s s' t  : estep s s' -> estep (eapp s t) (eapp s' t).
+  
+Fixpoint contains_evar n (t : eterm) : bool :=
+  match t with
+  | evar m => if Nat.eqb n m then true else false
+  | eapp s t => contains_evar n s || contains_evar n t
+  | _ => false
+  end.
+(*
+Fixpoint contains_var n (t : L.term) : bool :=
+  match t with
+  | var m => if Nat.eqb n m then true else false
+  | app s t => contains_var n s || contains_var n t
+  | lam t => contains_var (S n) t
+  end.
+*)
+(* exponential abstraction *)
+Fixpoint abstraction (s : eterm) : eterm :=
+    match s with
+    | evar 0 => eapp (eapp eS eK) eK
+    | evar (S n) => eapp eK (evar n)
+    | eapp s t => eapp (eapp eS (abstraction s)) (abstraction t)
+    | _ => eapp eK s
+    end.
+
+Fixpoint translate (s : L.term) : eterm :=
+  match s with
+  | var n => evar n
+  | app s t => eapp (translate s) (translate t)
+  | lam t => abstraction (translate t)
+  end.
+
+  Require Import Relations PeanoNat.
+  #[local] Arguments clos_trans {A}.
+  #[local] Arguments clos_refl_trans {A}.
+  
+  From Undecidability Require L.Util.L_facts.
+Require Import ssreflect ssrbool ssrfun.
+Unset Implicit Arguments.
+
+Lemma evalue_abstraction t : evalue (abstraction t).
+Proof.
+  elim: t; [| |case|] => /=.
+  all: by auto using evalue.
+Qed.
+
+(*
+
+
+Lemma closed'_eappE s t : closed' (eapp s t) -> closed' s /\ closed' t.
+Proof. move=> H. split => n u; by have [] := H n u. Qed.
+
+Lemma closed'_eappI s t : closed' s -> closed' t -> closed' (eapp s t).
+Proof. move=> Hs Ht n u /=. by rewrite (Hs n u) (Ht n u). Qed.
+
+Lemma many_estepAppL s t u : clos_trans estep s t -> clos_trans estep (eapp s u) (eapp t u).
+Proof.
+  elim.
+  - move=> > /estepAppL ?. by apply: t_step.
+  - move=> > ????. by apply: t_trans; eassumption.
+Qed.
+
+Lemma many_estepAppR s t u : clos_trans estep s t -> clos_trans estep (eapp u s) (eapp u t).
+Proof.
+  elim.
+  - move=> > /estepAppR ?. by apply: t_step.
+  - move=> > ????. by apply: t_trans; eassumption.
+Qed.
+
+Lemma closed'_evarE n : closed' (evar n) -> False.
+Proof. move=> /(_ n eK) /=. by rewrite Nat.eqb_refl. Qed.
+
+Lemma closed'_erenE xi t : closed' (eren xi t) -> closed' t.
+Proof.
+  elim: t; [done|done| |].
+  - by move=> > /closed'_evarE.
+  - move=> ? IH1 ? IH2.
+    move=> /closed'_eappE [/IH1 + /IH2].
+    by apply: closed'_eappI.
+Qed.
+
+Lemma closed'_eren xi {t} : closed' t -> eren xi t = t.
+Proof.
+  elim: t; [done|done| |].
+  - by move=> > /closed'_evarE.
+  - move=> /= ? IH1 ? IH2.
+    by move=> /closed'_eappE [/IH1 -> /IH2 ->].
+Qed.
+
+Lemma estep_abstraction s t :
+  evalue t -> closed' (abstraction s) -> clos_trans estep (eapp (abstraction s) t) (esubst' s 0 t).
+Proof.
+  move=> Ht. elim: s.
+  - move=> ?. apply: t_step. by apply: estepK.
+  - move=> ?. apply: t_step. by apply: estepK.
+  - move=> [|n] /= H.
+    + apply: t_trans. { apply: t_step. by apply: estepS. }
+      apply: t_step. apply: estepK. by apply: evalue_K1.
+    + by move: H => /closed'_eappE [_] /closed'_evarE.
+  - move=> s1 IH1 s2 IH2.
+    case Hs1s2: (contains_evar 0 (eapp s1 s2)).
+    + move: Hs1s2 => /= ->.
+      move=> /closed'_eappE [/closed'_eappE] [_].
+      move=> /IH1 {}IH1 /IH2 {}IH2.
+      apply: t_trans. { apply: t_step. by apply: estepS. }
+      apply: t_trans. { apply: many_estepAppL. by eassumption. }
+      by apply: many_estepAppR.
+    + move: (Hs1s2) => /= ->.
+      move=> /closed'_eappE [_] /closed'_eappE [] /closed'_erenE Hs1 /closed'_erenE Hs2.
+      move: Hs1 Hs2 (Hs1) (Hs2) => -> -> /closed'_eren -> /closed'_eren ->.
+      apply: t_step. by apply: estepK.
+Qed.
+
+Lemma closed'_not_contains_evar t n : closed' t -> contains_evar n t = false.
+Proof.
+  elim: t; [done|done| |].
+  - by move=> > /closed'_evarE.
+  - by move=> s IH1 t IH2 /closed'_eappE /= [/IH1 -> /IH2 ->].
+Qed.
+
+Lemma esubst'_eren_pred s n t : closed' t -> contains_evar 0 s = false ->
+  esubst' (eren Nat.pred s) n t = eren Nat.pred (esubst' s (S n) t).
+Proof.
+  move=> Ht. elim: s; [done|done| |].
+  - move=> [|m]; first done.
+    move=> _ /=. case: (Nat.eqb m n); last done.
+    by rewrite (closed'_eren Nat.pred Ht).
+  - move=> s1 IH1 s2 IH2 /=.
+    by move=> /norP [/negPf /IH1 -> /negPf /IH2 ->].
+Qed.
+
+Lemma contains_evar_0_esubst' s n t : closed' t ->
+  contains_evar 0 (esubst' s (S n) t) = contains_evar 0 s.
+Proof.
+  move=> Ht. elim: s; [done|done| |].
+  - move=> [|m] /=; first done.
+    case: (Nat.eqb m n); last done.
+    by apply: closed'_not_contains_evar.
+  - by move=> /= s1 -> s2 ->.
+Qed.
+
+Lemma esubst'_abstraction s n t :
+  closed' t ->
+  esubst' (abstraction s) n t = abstraction (esubst' s (S n) t).
+Proof.
+  move=> Ht. elim: s n; [done|done| |].
+  - move=> [|m] n /=; first done.
+    case E: (Nat.eqb m n); last done.
+    case: t Ht => > /= ; [done|done| |].
+    + by move=> /closed'_evarE.
+    + move=> /closed'_eappE [H1 H2].
+      move: (H1) (H2) => /closed'_eren -> /closed'_eren ->.
+      by move: H1 H2 => /closed'_not_contains_evar -> /closed'_not_contains_evar ->.
+  - move=> s1 IH1 s2 IH2 n.
+    case Hs1s2: (contains_evar 0 (eapp s1 s2)).
+    + rewrite /= !contains_evar_0_esubst' //.
+      move: Hs1s2 => /= ->. by rewrite /= IH1 IH2.
+    + rewrite /= !contains_evar_0_esubst' //.
+      move: (Hs1s2) => /= ->.
+      move: Hs1s2 => /= /norP [/negPf ? /negPf ?].
+      by rewrite !esubst'_eren_pred.
+Qed.
+
+Lemma not_contains_evar_closed' t : (forall n, contains_evar n t = false) -> closed' t.
+Proof.
+  elim: t; [done|done| |].
+  - move=> m /(_ m) /=. by rewrite Nat.eqb_refl.
+  - move=> /= s IH1 t IH2 H. apply: closed'_eappI.
+    + apply: IH1 => n. by have /norP [/negPf ->] := H n.
+    + apply: IH2 => n. by have /norP [_ /negPf ->] := H n.
+Qed.
+
+Lemma contains_evar_pred n t : contains_evar 0 t = false ->
+  contains_evar n (eren Nat.pred t) = contains_evar (S n) t.
+Proof.
+  elim: t; [done|done|by case|].
+  by move=> s IH1 t IH2 /= /norP [/negPf /IH1 -> /negPf /IH2 ->].
+Qed.
+
+Lemma contains_evar_abstraction n s : contains_evar n (abstraction s) = contains_evar (S n) s.
+Proof.
+  elim: s; [done|done|by case|].
+  move=> s IH1 t IH2.
+  case H: (contains_evar 0 (eapp s t)).
+  - move: H => /= -> /=. by rewrite IH1 IH2.
+  - move: (H) => /= -> /=.
+    by move: H => /= /norP [/negPf /contains_evar_pred -> /negPf /contains_evar_pred ->].
+Qed.
+
+Lemma closed'_translate s : L_facts.closed s -> closed' (translate s).
+Proof.
+  move=> /L_facts.closed_dcl Hs.
+  apply: not_contains_evar_closed' => n.
+  have : 0 <= n by lia.
+  move: (0) Hs n => ?. elim.
+  - move=> m x ? n /= ?.
+    by have /Nat.eqb_neq -> : n <> x by lia.
+  - move=> > ? IH1 ? IH2 ?? /=.
+    rewrite IH1; [done|]. by rewrite IH2.
+  - move=> > ? IH n ? /=.
+    rewrite contains_evar_abstraction. apply: IH. lia.
+Qed.
+
+Lemma esubst'_translate s n t : L_facts.closed t ->
+  esubst' (translate s) n (translate t) = translate (L.subst s n t).
+Proof.
+  move=> Ht. elim: s n => /=.
+  - move=> m n. by case: (Nat.eqb m n).
+  - move=> s1 IH1 s2 IH2 n. by rewrite IH1 IH2.
+  - move=> s IH n. rewrite esubst'_abstraction. { by apply: closed'_translate. }
+    by rewrite IH.
+Qed.
+
+(* transforms a goal (A -> B) -> C into goals A and B -> C *)
+Lemma unnest : forall (A B C : Type), A -> (B -> C) -> (A -> B) -> C.
+Proof. auto. Qed.
+
+(* actually plus instead of star *)
+(* this can be shown *)
+Lemma main s t : L_facts.step s t -> L_facts.closed s ->
+  clos_trans estep (translate s) (translate t).
+Proof.
+  elim.
+  - move=> {}s {}t /= /L_facts.closed_app [Hs Ht].
+    have /(estep_abstraction (translate s)) := evalue_abstraction (translate t).
+    apply: unnest. { by apply: (closed'_translate (lam s)). }
+    congr clos_trans.
+    by apply: (esubst'_translate _ _ (lam t)).
+  - move=> > ? IH /L_facts.closed_app [_ /IH] /=.
+    by apply: many_estepAppR.
+  - move=> > ? IH /L_facts.closed_app [/IH + _] /=.
+    by apply: many_estepAppL.
+Qed.
+
+Lemma t_rt x y : clos_trans estep x y -> clos_refl_trans estep x y.
+Proof. Admitted.
+
+Arguments rt_trans {A} R.
+
+Lemma main' s t : L.eval s t -> L_facts.closed s ->
+  clos_refl_trans estep (translate s) (translate t).
+Proof.
+  move=> /L_facts.eval_iff []. elim.
+  - move=> ? [] s' -> ?. by apply: rt_refl.
+  - move=> > Hxy. move: (Hxy) => /main IH1 ? IH2 /IH2 {}IH2.
+    move: Hxy => /L_facts.closed_step Hxy Hx.
+    move: (Hx) => /IH1 /t_rt /(rt_trans estep). apply.
+    apply: IH2. by apply: Hxy.
+Qed.
+
+(* wrong approach ? 
+Lemma inverse_main s t : L_facts.closed s -> estep (translate s) t ->
+  exists u, clos_refl_trans estep t (translate u) /\ L_facts.step s u.
+Proof.
+  move Es': (translate s) => s' Hs Hs't.
+  elim: Hs't s Hs Es'.
+  - move=> {}s' {}t Ht s.
+    case: s => //=.
+    + case => //=.
+      * move=> > ? []. admit. (* impossible *)
+      * admit. (* difficult, doable *)
+    + admit. (* impossible *)
+  - admit. (* unclear *)
+  - move=> > ? IH s.
+      case => //=.
+        ** move=> [|?]; first done.
+           move=> > /= ? []. admit. (* impossible *)
+        ** 
+      
+      move=> > /=.
+    have :=  translate_evalue
+
+clos_refl_trans estep (translate s) (translate t).
+*)
+*)
+
+Inductive eval : eterm -> eterm -> Prop :=
+| eval_evalue t : evalue t -> eval t t
+| eval_K0 s t : eval s eK -> eval (eapp s t) (eapp eK t)
+| eval_K s t t' v u : eval s (eapp eK v) -> eval v u -> eval t t' -> eval (eapp s t) u
+| eval_S0 s t : eval s eS -> eval (eapp s t) (eapp eS t)
+| eval_S1 s t u : eval s (eapp eS u) -> eval (eapp s t) (eapp (eapp eS u) t)
+| eval_S s t t' v w u : eval s (eapp (eapp eS v) w) -> eval (eapp (eapp v t') (eapp w t')) u -> eval t t' -> eval (eapp s t) u.
+
+(*
+Lemma translate_shape s : L_facts.closed s ->
+  (exists v, translate s = eapp eK v) \/ (exists v w, translate s = eapp (eapp eS v) w).
+*)
+
+Lemma translate_not_eK0 s : translate s = eK -> False.
+Proof.
+  case: s => //=.
+  move=> s. case: (translate s) => //=.
+  by case.
+Qed.
+
+Lemma translate_not_eS0 s : translate s = eS -> False.
+Proof.
+  case: s => //=.
+  move=> s. case: (translate s) => //=.
+  by case.
+Qed.
+
+Lemma translate_not_eS1 s t : translate s = eapp eS t -> False.
+Proof.
+  case: s => //=.
+  - move=> > [] *. apply: translate_not_eS0. by eassumption.
+  - move=> s. case: (translate s) => //=.
+    by case.
+Qed.
+
+Lemma abstraction_translate_not_eS1 s t : abstraction (translate s) = eapp eS t -> False.
+Proof.
+  case: (translate s) => //=. by case.
+Qed.
+
+#[local] Hint Resolve translate_not_eK0 : translate.
+#[local] Hint Resolve translate_not_eS0 : translate.
+#[local] Hint Resolve translate_not_eS1 : translate.
+#[local] Hint Resolve abstraction_translate_not_eS1 : translate.
+
+(* not sure whether possible 
+Lemma eval_translate_shape s t :
+  eval (translate s) t -> L_facts.closed s -> (exists v, t = eapp eK v) \/ (exists v w, t = eapp (eapp eS v) w).
+Proof.
+  move Es': (translate s) => s' Hs't.
+  elim: Hs't s Es'.
+  - move=> ? []. 
+    + move=> *. exfalso. eauto with translate.
+    + admit.
+    + move=> *. exfalso. eauto with translate.
+    + admit.
+    + admit.
+  - move=> s1 s2 ? IH [] //.
+    + move=> ?? [] /IH {}IH ? /L_facts.closed_app [/IH]. firstorder done.
+    + intros. left. by eexists.
+  - move=> > ? IH1 ? IH2 ? IH3 [] //=.
+    + move=> ?? [] /IH1 {}IH1 /IH3 {}IH3.
+      move=> /L_facts.closed_app [/IH1 {}IH1 /IH3 {}IH3].
+      move: IH1 => [|]; last by firstorder done.
+
+    move=> /= s. have:= IH s.
+    intuition. move=>
+    +
+  -
+  
+  move=> ? /translate_not_eK *. exfalso. auto. done. eauto with translate. Print evalue. 
+*)
+
+Inductive ered : eterm -> eterm -> Prop :=
+  | eredK  s t       : ered (eapp (eapp eK s) t) s
+  | eredS  s t u     : ered (eapp (eapp (eapp eS s) t) u) (eapp (eapp s u) (eapp t u)).
+
+Lemma eval_red s t u : eval s u -> ered s t -> eval t u.
+Proof.
+  move=> Hsu. elim: Hsu t.
+  - move=> ?? H1 H2. admit.
+  - move=> {}s {}u. admit. (* impossible  *)
+  - 
+Admitted.
+
+
+(* lets assume this works *)
+Lemma main2 s t : L.eval s t -> L_facts.closed s ->
+  eval (translate s) (translate t).
+Proof.
+  elim.
+  { move=> {}s ?. apply: eval_evalue. by apply: evalue_abstraction. }
+  move=> {}s u {}t t' v ? IH1 ? IH2 ? IH3 /L_facts.closed_app [Hs Ht].
+  move: (Hs) (Ht) => /IH1 {}IH1 /IH2 {}IH2 /=.
+  move: IH1 => /=.
+  have /IH3 {}IH3 : L_facts.closed (L.subst u 0 t') by admit. (* doable *)
+  move: (u) IH3 => [].
+  - move=> [|n] /=; last admit. (* doable *)
+    move=> ? ?. apply: eval_S; [eassumption| |eassumption].
+    apply: eval_K; [by apply /eval_evalue /evalue_K1|done|].
+    apply: eval_evalue. by apply: evalue_K1.
+  - move=> s1 s2 /= H1 IH1.
+    apply: eval_S; [eassumption| |eassumption].
+    case: s1 H1 {IH1}.
+    + move=> [|n]; last admit. (* doable *)
+      move=> /=. admit.
+    + admit.
+    + admit.
+  - admit.
+Admitted.
+
+(* lets assume this works *)
+Lemma inverse_main2 s u : 
+  eval (translate s) u -> L_facts.closed s -> exists t, L.eval s t.
+Proof.
+  move Es': (translate s) => s' Hs'u.
+  elim: Hs'u s Es'.
+  - move=> ? [].
+    + move=> *. exfalso. by eauto with translate.
+    + move=> ? [] //=.
+      * move=> > [] *. exfalso. by eauto with translate.
+      * move=> *. eexists. by apply: L.eval_abs.
+    + move=> *. exfalso. by eauto with translate.
+    + move=> ? [] //=.
+      * move=> > [] *. exfalso. by eauto with translate.
+      * move=> *. exfalso. by eauto with translate.
+    + move=> ?? [] //=.
+      * move=> > [] *. exfalso. by eauto with translate.
+      * move=> *. eexists. by apply: L.eval_abs.
+  - move=> s t ? IH [] //=; first last.
+    { move=> *. eexists. by apply: L.eval_abs. }
+    admit. (* this should be impossible, LEMMA! *)
+  - move=> s t t' v {}u ? IH1 ? IH2 ? IH3 [] //=; first last.
+    { move=> *. eexists. by apply: L.eval_abs. }
+    move=> s1 s2 [].
+    move=> /IH1 {}IH1 /IH3 {}IH3 /L_facts.closed_app [].
+    
+
+    move=> s1 s2 [] /IH. 
+
 (* direct one full reduction *)
 
 Inductive eterm : Type :=
@@ -324,12 +783,64 @@ clos_refl_trans estep (translate s) (translate t).
 Inductive eval : eterm -> eterm -> Prop :=
 | eval_evalue t : evalue t -> eval t t
 | eval_K0 s t : eval s eK -> eval (eapp s t) (eapp eK t)
-| eval_K s t t' v v' : eval s (eapp eK v) -> eval v v' -> eval t t' -> eval (eapp s t) v'
+| eval_K s t t' v u : eval s (eapp eK v) -> eval v u -> eval t t' -> eval (eapp s t) u
 | eval_S0 s t : eval s eS -> eval (eapp s t) (eapp eS t)
-| eval_S1 s t u : eval s (eapp eS u) -> eval (eapp s t) (eapp (eapp eK u) t)
+| eval_S1 s t u : eval s (eapp eS u) -> eval (eapp s t) (eapp (eapp eS u) t)
 | eval_S s t t' v w u : eval s (eapp (eapp eS v) w) -> eval (eapp (eapp v t') (eapp w t')) u -> eval t t' -> eval (eapp s t) u.
 
+(*
+Lemma translate_shape s : L_facts.closed s ->
+  (exists v, translate s = eapp eK v) \/ (exists v w, translate s = eapp (eapp eS v) w).
+*)
 
+Lemma translate_not_eK s : translate s = eK -> False.
+Proof.
+  case: s => //=.
+  move=> s. case: (translate s) => //=.
+  - by case.
+  - move=> {}s t. by case: (contains_evar 0 s || contains_evar 0 t).
+Qed.
+
+Lemma translate_not_eS s : translate s = eS -> False.
+Proof.
+  case: s => //=.
+  move=> s. case: (translate s) => //=.
+  - by case.
+  - move=> {}s t. by case: (contains_evar 0 s || contains_evar 0 t).
+Qed.
+
+#[local] Hint Resolve translate_not_eK : translate.
+#[local] Hint Resolve translate_not_eS : translate.
+
+(* not sure whether possible 
+Lemma eval_translate_shape s t :
+  eval (translate s) t -> L_facts.closed s -> (exists v, t = eapp eK v) \/ (exists v w, t = eapp (eapp eS v) w).
+Proof.
+  move Es': (translate s) => s' Hs't.
+  elim: Hs't s Es'.
+  - move=> ? []. 
+    + move=> *. exfalso. eauto with translate.
+    + admit.
+    + move=> *. exfalso. eauto with translate.
+    + admit.
+    + admit.
+  - move=> s1 s2 ? IH [] //.
+    + move=> ?? [] /IH {}IH ? /L_facts.closed_app [/IH]. firstorder done.
+    + intros. left. by eexists.
+  - move=> > ? IH1 ? IH2 ? IH3 [] //=.
+    + move=> ?? [] /IH1 {}IH1 /IH3 {}IH3.
+      move=> /L_facts.closed_app [/IH1 {}IH1 /IH3 {}IH3].
+      move: IH1 => [|]; last by firstorder done.
+
+    move=> /= s. have:= IH s.
+    intuition. move=>
+    +
+  -
+  
+  move=> ? /translate_not_eK *. exfalso. auto. done. eauto with translate. Print evalue. 
+*)
+
+(* lets assume this works *)
 Lemma main2 s t : L.eval s t -> L_facts.closed s ->
   eval (translate s) (translate t).
 Proof.
@@ -338,29 +849,43 @@ Proof.
   move=> {}s u {}t t' v ? IH1 ? IH2 ? IH3 /L_facts.closed_app [Hs Ht].
   move: (Hs) (Ht) => /IH1 {}IH1 /IH2 {}IH2 /=.
   move: IH1 => /=.
+  have /IH3 {}IH3 : L_facts.closed (L.subst u 0 t') by admit. (* doable *)
+  move: (u) IH3 => [].
+  - move=> [|n] /=; last admit. (* doable *)
+    move=> ? ?. apply: eval_S; [eassumption| |eassumption].
+    apply: eval_K; [by apply /eval_evalue /evalue_K1|done|].
+    apply: eval_evalue. by apply: evalue_K1.
+  - move=> s1 s2 H1.
+    apply: evalK. move: 
+
   case Hu: (contains_evar 0 (translate u)).
-  - case Hu': (translate u) => u'.
-    + admit. (* doable *)
-    + 
-    move: Hu'. clear. case: u => //=.
-      move=> [] //=.
+  - case Hu': (translate u) => [||n|].
+    + exfalso. by eauto with translate.
+    + exfalso. by eauto with translate.
+    + move: n Hu' Hu => [|n] ->; last done.
+      move=> /= _ ?. apply: eval_S; [eassumption| |eassumption].
+      apply: eval_K; [by apply /eval_evalue /evalue_K1| |]. move: 
+    admit. (* doable *)
+Admitted.
 
 
-  rewrite /abstraction.
-
-  - move=> {}s {}t /= /L_facts.closed_app [Hs Ht].
-    have /(estep_abstraction (translate s)) := evalue_abstraction (translate t).
-    apply: unnest. { by apply: (closed'_translate (lam s)). }
-    congr clos_trans.
-    by apply: (esubst'_translate _ _ (lam t)).
-  - move=> > ? IH /L_facts.closed_app [_ /IH] /=.
-    by apply: many_estepAppR.
-  - move=> > ? IH /L_facts.closed_app [/IH + _] /=.
-    by apply: many_estepAppL.
-Qed.
-
-Print Assumptions main.
-
+(* lets assume this works *)
+Lemma inverse_main2 s u : 
+  eval (translate s) u -> L_facts.closed s -> exists t, L.eval s t.
+Proof.
+  move Es': (translate s) => s' Hs'u.
+  elim: Hs'u s Es'.
+  - move=> ? [].
+    + admit. (* impossible *)
+    + move=> ? [] //=.
+      * admit. (* impossible *)
+      * move=> *. eexists. by apply: L.eval_abs.
+    + admit. (* impossible *)
+    + admit. (* impossible *)
+    + move=> ?? [] //=.
+      * admit. (* impossible *)
+      * move=> *. eexists. by apply: L.eval_abs.
+  -
 
 
 Inductive term : Type :=
