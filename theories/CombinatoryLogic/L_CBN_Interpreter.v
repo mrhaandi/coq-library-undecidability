@@ -1,0 +1,295 @@
+From Undecidability Require L.L.
+Require Import List Lia.
+Import L.
+From Undecidability Require Import L.Util.L_facts.
+From Undecidability Require L.Computability.Seval.
+Require Import Relations.
+Require Import ssreflect ssrbool ssrfun.
+
+(*
+  k   : step index
+  ts  : hanging arguments (evaluationg u v1 .. vn)
+  ctx : context for deBruijn terms
+  vs  : list of terms that need to evalue (necessary for call-by-value) 
+  u term to reduce
+  tail-recursive
+  currently left-most outer-most call by value
+*)
+
+Inductive eterm := closure : list eterm -> term -> eterm.
+
+(* eva k ts vs u *)
+(* domain predicate 
+advantages: 
++ all functionality (subst, eqb, ...) in halt_cbv
++ tail-recursive (halt_cbv .. -> halt_cbv ..)
++ easy to simulate by stack machine /minsky machine?
+*)
+
+(*
+Definition step (x : (list eterm) * eterm) : option ((list eterm) * eterm) :=
+  let '(ts, closure ctx s) := x in
+    match s with
+    (* context lookup *)
+    | var n =>
+      match ctx, n with
+      | t'::ctx', 0 => Some (ts, t')
+      | t'::ctx', S n' => Some (ts, closure ctx (var n'))
+      | _, _ => None
+      end
+    (* push argument *)
+    | app s t => Some ((closure ctx t) :: ts, closure ctx s)
+    (* contract redex *)
+    | lam s =>
+        match ts with
+        | [] => None
+        | t'::ts' => Some (ts', closure (t'::ctx) s)
+        end
+    end.
+*)
+    (*
+Inductive halt_cbn : list eterm -> eterm -> Prop :=
+  | halt_cbn_step ts s ts' s' : step (ts, s) = Some (ts', s') -> halt_cbn ts' s' -> halt_cbn ts s
+  | halt_cbn_lam ctx s : halt_cbn [] (closure ctx (lam s)).
+*)
+
+(* most easy to simulate halt_cbn 
+halt_cbn [t1 .. tn] ctx t means that (t t1 .. tn) halts in context ctx (terms for free variables)
+*)
+Inductive halt_cbn : list eterm -> list eterm -> term -> Prop :=
+  | halt_var_0 ts ctx t ctx' :
+      halt_cbn ts ctx t ->
+      halt_cbn ts ((closure ctx t)::ctx') (var 0)
+  | halt_var_S ts ctx n t :
+      halt_cbn ts ctx (var n) ->
+      halt_cbn ts (t::ctx) (var (S n))
+  | halt_app ts ctx s t :
+      halt_cbn ((closure ctx t) :: ts) ctx s ->
+      halt_cbn ts ctx (app s t)
+  | halt_lam_ts t ts ctx s :
+      halt_cbn ts (t::ctx) s ->
+      halt_cbn (t::ts) ctx (lam s)
+  | halt_lam ctx s :
+      halt_cbn [] ctx (lam s).
+
+Lemma halt_cbnE ts ctx u : halt_cbn ts ctx u ->
+  match u with
+  | var 0 => True
+  | var (S n) => True
+  | app s t => halt_cbn ((closure ctx t) :: ts) ctx s
+  | lam s =>
+      match ts with
+      | [] => True
+      | t'::ts' => halt_cbn ts' (t'::ctx) s
+      end
+  end.
+Proof. by case. Qed.
+
+(* left-most outer-most call-by-name *)
+Inductive step : term -> term -> Prop :=
+  | stepLam s t    : step (app (lam s) t) (subst s 0 t)
+  | stepApp s s' t : step s s' -> step (app s t) (app s' t).
+
+Lemma step_halt_cbn s t ts ctx : step s t ->
+  halt_cbn ts ctx s -> halt_cbn ts ctx t.
+Proof.
+  move=> Hst. elim: Hst ts ctx; clear s t.
+  - move=> s t ts ctx /halt_cbnE /halt_cbnE.
+    admit. (* needs closure resolution lemma *)
+  - move=> s s' t ? IH ts ctx /halt_cbnE /IH ?.
+    by apply: halt_app.
+Admitted.
+
+Lemma step_halt_cbn' s t ts ctx : step s t ->
+  halt_cbn ts ctx t -> halt_cbn ts ctx s.
+Proof.
+  move=> Hst. elim: Hst ts ctx; clear s t.
+  - move=> s t ts ctx H. apply: halt_app. apply: halt_lam_ts.
+    admit. (* needs closure resolution lemma *)
+  - move=> s s' t ? IH ts ctx /halt_cbnE /IH ?.
+    by apply: halt_app.
+Admitted.
+
+Inductive eval_cbn : term -> term -> Prop :=
+  | eval_lam s :
+      eval_cbn (lam s) (lam s)
+  | eval_app s u t v :
+      eval_cbn s (lam u) -> eval_cbn (subst u 0 t) v -> eval_cbn (app s t) v.
+
+Inductive halt_cbn : list eterm -> eterm -> Prop :=
+  | halt_var_0 ts ctx t :
+      halt_cbn ts t ->
+      halt_cbn ts (closure (t::ctx) (var 0))
+  | halt_var_S ts ctx n t :
+      halt_cbn ts (closure ctx (var n)) ->
+      halt_cbn ts (closure (t::ctx) (var (S n)))
+  | halt_app ts ctx s t :
+      halt_cbn ((closure ctx t) :: ts) (closure ctx s) ->
+      halt_cbn ts (closure ctx (app s t))
+  | halt_lam_ts t ts ctx s :
+      halt_cbn ts (closure (t::ctx) s) ->
+      halt_cbn (t::ts) (closure ctx (lam s))
+  | halt_lam ctx s :
+      halt_cbn [] (closure ctx (lam s)).
+
+#[local] Notation "! t" := (closure [] t) (at level 50).
+
+(*
+Definition closed_equiv s1 s2 := 
+  let '(closure ctx1 t1) := s1 in
+  let '(closure ctx2 t2) := s2 in
+  (* forall free variables x in s1 and s2 ctx1 x = ctx2 x *)
+*)
+
+
+Lemma halt_cbn_closed u ts ctx : halt_cbn ts (! u) -> closed u -> halt_cbn ts (closure ctx u).
+Proof.
+  move Eu': (! u) => u' Hu'. elim: Hu' ctx u Eu'.
+  - by move=> > ?? > [].
+  - by move=> > ?? > [].
+  - move=> > ? IH > [] ??. subst.
+    move=> /closed_app [] /IH {}IH ?.
+    apply: halt_app.
+Admitted.
+
+Fixpoint subst_list k (ctx : list term) (u : term) : term :=
+  match ctx with
+  | [] => u
+  | t::ctx => subst_list (S k) ctx (subst u k t)
+  end.
+
+(* recursively substitute each local context *)
+Fixpoint flatten (u : eterm) : term :=
+  let '(closure ctx t) := u in subst_list 0 (map flatten ctx) t.
+
+Definition many_app s ts := fold_left app ts s.
+
+Lemma subst_list_app k ctx s t :
+  subst_list k ctx (app s t) = app (subst_list k ctx s) (subst_list k ctx t).
+Proof.
+  elim: ctx k s t => /=; first done.
+  move=> t ctx IH k s' t'. by rewrite IH.
+Qed.
+
+Lemma subst_list_lam k ctx s :
+  subst_list k ctx (lam s) = lam (subst_list (S k) ctx s).
+Proof.
+  elim: ctx k s => /=; first done.
+  move=> t ctx IH k s. by rewrite IH.
+Qed.
+
+Lemma halt_cbn_equiv ts u ts' u' :
+  halt_cbn ts u ->
+  Forall2 (fun t t' => flatten t = flatten t') ts ts' ->
+  flatten u = flatten u' ->
+  halt_cbn ts' u'.
+Proof.
+  move=> H. elim: H ts' u'; clear ts u.
+  - move=> ts ctx t ? IH ts' u' /= ??.
+    admit.
+  - admit.
+  - move=> ts ctx s t ? IH ts' u' /=.
+    case: u' => ctx2 [].
+    + admit. (* hard case *)
+    + move=> t1 t2 /=. rewrite !subst_list_app.
+      move=> H1 [Et1 Et2]. apply: halt_app.
+      apply: IH.
+      * by constructor.
+      * done.
+    + move=> t' /=. by rewrite subst_list_app subst_list_lam.
+  - move=> t ts ctx s ? IH [|t'' ts'] u'.
+    + move=> H. by inversion H.
+    + admit.
+  - admit. (* easy *) 
+Admitted.
+      
+      H2.
+      move=> [] /(IH ts' (closure ctx2 t1)).
+       /IH.
+    
+    move=> [|n].
+      * move=> /= ?. case: ctx2 => [|v2 ctx2].
+        ** move=> /=. admit. (* easy *)
+        ** move=> /= ?. apply: halt_var_0.
+
+
+        apply: IH.
+
+
+
+  move Ets': (map _ _) => ts'.
+  move Eu': (closure [] _) => u' H'.
+  elim: H' ts Ets' u Eu'; clear ts' u'. 
+  - done.
+  - done.
+  - move=> > ? IH ?? [] ctx [].
+    + move=> n [] ?. have ->: n = 0 by admit.
+      subst. case: ctx; first done.
+      move=> t' ctx' /= Ht'.
+
+(*
+Lemma halt_cbn_flatten u ts : halt_cbn (map (closure []) (map flatten ts)) (closure [] (flatten u)) -> halt_cbn ts u.
+Proof.
+  move Ets': (map _ _) => ts'.
+  move Eu': (closure [] _) => u' H'.
+  elim: H' ts Ets' u Eu'; clear ts' u'. 
+  - done.
+  - done.
+  - move=> > ? IH ?? [] ctx [].
+    + move=> n [] ?. have ->: n = 0 by admit.
+      subst. case: ctx; first done.
+      move=> t' ctx' /= Ht'.
+      apply: halt_var_0.
+      case: t' Ht' => ctx'' [].
+      *  
+Admitted.
+*)
+
+Definition steps n x := Nat.iter n (obind step) (Some x).
+
+Definition rho (s : term) := 
+  let C := lam (lam (app (var 0) (lam (app (app (app (var 2) (var 2)) (var 1)) (var 0))))) in
+  lam (app (app (app C C) s) (var 0)).
+
+Lemma rho_closed s : closed s -> closed (rho s).
+Proof. move=> Hs ?? /=. by rewrite Hs. Qed.
+
+
+Lemma rho_spec s t ts ctx : closed s ->
+  halt_cbn ts (closure ctx (app (app s (rho s)) (lam t))) ->
+  halt_cbn ts (closure ctx (app (rho s) (lam t))).
+Proof.
+  move=> Hs H. apply: halt_app. rewrite /rho.
+  apply: halt_lam_ts.
+  apply: halt_app.
+  apply: halt_app.
+  apply: halt_app.
+  apply: halt_lam_ts.
+  apply: halt_lam_ts.
+  apply: halt_app.
+  apply: halt_var_0.
+  apply: halt_cbn_flatten. rewrite /=. rewrite !Hs.
+  do ? rewrite !subst_list_lam !subst_list_app /=.
+  rewrite -/(rho s).
+Lemma rho_spec s t ts ctx : closed s ->
+  steps 9 (ts, closure ctx (app (rho s) (lam t))) = 
+  
+  steps 2 (ts, closure ctx (app (app s (rho s)) (lam t))).
+Proof.
+  rewrite /rho.
+  move=> Hs /=.
+  have HH : closure 
+
+steps (app (rho s) (lam t)) (app (app s (rho s)) (lam t)).
+Proof.
+  move=> Hs. rewrite /rho. do ? do_step.
+  rewrite /= (Hs 0). by apply: rt_refl.
+Qed.
+
+Lemma rho_spec s t : closed s -> steps (app (rho s) (lam t)) (app (app s (rho s)) (lam t)).
+Proof.
+  move=> Hs. rewrite /rho. do ? do_step.
+  rewrite /= (Hs 0). by apply: rt_refl.
+Qed.
+  
+  Opaque rho.
