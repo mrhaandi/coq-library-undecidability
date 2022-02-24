@@ -94,6 +94,54 @@ Inductive step : term -> term -> Prop :=
   | stepLam s t    : step (app (lam s) t) (subst s 0 t)
   | stepApp s s' t : step s s' -> step (app s t) (app s' t).
 
+Fixpoint subst_list k (ctx : list term) (u : term) : term :=
+  match ctx with
+  | [] => u
+  | t::ctx => subst_list (S k) ctx (subst u k t)
+  end.
+
+(* recursively substitute each local context *)
+Fixpoint flatten (u : eterm) : term :=
+  let '(closure ctx t) := u in subst_list 0 (map flatten ctx) t.
+
+Lemma subst_list_app k ctx s t :
+  subst_list k ctx (app s t) = app (subst_list k ctx s) (subst_list k ctx t).
+Proof.
+  elim: ctx k s t => /=; first done.
+  move=> t ctx IH k s' t'. by rewrite IH.
+Qed.
+
+Lemma subst_list_lam k ctx s :
+  subst_list k ctx (lam s) = lam (subst_list (S k) ctx s).
+Proof.
+  elim: ctx k s => /=; first done.
+  move=> t ctx IH k s. by rewrite IH.
+Qed.
+
+
+Lemma asd ts s ctx :
+  Forall (fun t => 
+    (exists t', t = closure (map (closure []) ctx) t') \/ 
+    (exists t', t = closure [] (subst_list 0 ctx t'))) ts ->
+  halt_cbn ts [] (subst_list 0 ctx s) ->
+  halt_cbn ts (map (closure []) ctx) s.
+Proof.
+  elim: s ts ctx.
+  - move=> [|n] ts ctx /=.
+    + admit.
+    + admit. (* closed *)
+  - move=> s1 IH1 s2 IH2 ts ctx Hts /=.
+    rewrite subst_list_app.
+    move=> /halt_cbnE /IH1 {}IH1.
+    apply: halt_app.
+
+    admit. (* almost, needs subst in ts *)
+  - move=> s IH [|t' ts'] ctx /=.
+    + move=> *. apply: halt_lam.
+    + rewrite subst_list_lam. move=> /halt_cbnE ?.
+      apply: halt_lam_ts.
+      apply: IH.
+
 (* actually does not work because removing from ctx shifts indices and subst is plain *)
 (*
 Lemma asd ts s t ctx :
@@ -229,31 +277,11 @@ Proof.
     apply: halt_app.
 Admitted.
 
-Fixpoint subst_list k (ctx : list term) (u : term) : term :=
-  match ctx with
-  | [] => u
-  | t::ctx => subst_list (S k) ctx (subst u k t)
-  end.
 
-(* recursively substitute each local context *)
-Fixpoint flatten (u : eterm) : term :=
-  let '(closure ctx t) := u in subst_list 0 (map flatten ctx) t.
 
 Definition many_app s ts := fold_left app ts s.
 
-Lemma subst_list_app k ctx s t :
-  subst_list k ctx (app s t) = app (subst_list k ctx s) (subst_list k ctx t).
-Proof.
-  elim: ctx k s t => /=; first done.
-  move=> t ctx IH k s' t'. by rewrite IH.
-Qed.
 
-Lemma subst_list_lam k ctx s :
-  subst_list k ctx (lam s) = lam (subst_list (S k) ctx s).
-Proof.
-  elim: ctx k s => /=; first done.
-  move=> t ctx IH k s. by rewrite IH.
-Qed.
 
 Lemma halt_cbn_equiv ts u ts' u' :
   halt_cbn ts u ->
