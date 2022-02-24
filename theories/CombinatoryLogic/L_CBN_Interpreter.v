@@ -74,7 +74,11 @@ Inductive halt_cbn : list eterm -> list eterm -> term -> Prop :=
 
 Lemma halt_cbnE ts ctx u : halt_cbn ts ctx u ->
   match u with
-  | var 0 => True
+  | var 0 =>
+      match ctx with
+      | [] => False
+      | (closure ctx' t')::_ => halt_cbn ts ctx' t'
+      end
   | var (S n) => True
   | app s t => halt_cbn ((closure ctx t) :: ts) ctx s
   | lam s =>
@@ -90,6 +94,79 @@ Inductive step : term -> term -> Prop :=
   | stepLam s t    : step (app (lam s) t) (subst s 0 t)
   | stepApp s s' t : step s s' -> step (app s t) (app s' t).
 
+(* actually does not work because removing from ctx shifts indices and subst is plain *)
+(*
+Lemma asd ts s t ctx :
+    halt_cbn (map (closure ctx) ts) ctx (subst s 0 t) ->
+    halt_cbn (map (closure ctx) ts) ((closure ctx t)::ctx) s.
+Proof.
+  elim: s t ts ctx.
+  - move=> [|n] t ts ctx /=.
+    + move=> ?. by apply: halt_var_0.
+    + admit. (* closed *)
+  - move=> s1 IH1 s2 IH2 t ts ctx /=.
+    move=> /halt_cbnE. move=> /(IH1 _ (_ :: _)) {}IH1.
+    apply: halt_app.
+    admit. (* almost, needs subst in ts *)
+  - move=> s IH t [|t' ts'] ctx /=.
+    + move=> *. apply: halt_lam.
+    + move=> /halt_cbnE ?. apply: halt_lam_ts.
+*)
+
+(*
+Lemma asd ts s t ctx :
+    halt_cbn (map (closure ctx) ts) ctx (subst s 0 t) ->
+    halt_cbn (map (closure ctx) ts) ((closure ctx t)::ctx) s.
+Proof.
+  move Ets': (map _ _) => ts'.
+  move Hu: (subst s 0 t) => u H. elim: H s t ts Hu Ets'; clear ts' ctx u.
+  - admit.
+  - admit.
+  - move=> ts ctx s t ? IH [].
+    + move=> [|n]; [|done].
+      move=> ? ts' /= -> ?. subst.
+      apply: halt_var_0.
+      apply: halt_app.
+      have := IH (var 0) s (t::ts') erefl erefl.
+      by move=> /halt_cbnE. (* this interchange is the right technique! *)
+    + move=> s1 s2 t1 ts' /= [] /IH {}IH ??. subst.
+      apply: halt_app.
+      have := IH ((subst s2 0 t1)::ts') erefl.
+      admit. (* closures in ts *)
+    + done.
+  - move=> t ts ctx s ? IH [] /=.
+    + move=> [|?]; [|done].
+      move=> t' [|t'' ts'']; [done|].
+      move=> /= -> [? ?]. subst. apply: halt_var_0. by apply: halt_lam_ts.
+    + done.
+    + move=> s1 s2 [|t'' ts'']; [done|].
+      move=> [?] [??]. subst.
+      apply: halt_lam_ts.
+      have := IH (var 0) (subst s1 1 s2) ts'' erefl.
+
+      apply: IH.
+    
+      have := IH (var 0) s ts'' erefl erefl.
+
+      
+  - move=> ctx s [].
+    + move=> [|n]; [|done].
+      move=> ? ts /= -> ? ?. apply: halt_var_0. by apply: halt_lam.
+    + done.
+    + move=> *. by apply: halt_lam.
+  
+      apply: IH.
+
+
+      apply: (IH s).
+  move=> ts ctx t ctx' ? IH.
+    move=> []; [|done|done].
+    move=> [|n]; [|done].
+    move=> t' ts' /= ->.
+    move=> >. 
+*)
+
+(* take care that is works only for closed steps *)
 Lemma step_halt_cbn s t ts ctx : step s t ->
   halt_cbn ts ctx s -> halt_cbn ts ctx t.
 Proof.
