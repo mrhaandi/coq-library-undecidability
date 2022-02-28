@@ -100,29 +100,8 @@ Inductive step : term -> term -> Prop :=
   | stepLam s t    : step (app (lam s) t) (subst s 0 t)
   | stepApp s s' t : step s s' -> step (app s t) (app s' t).
 
-Fixpoint subst_list k (ctx : list term) (u : term) : term :=
-  match ctx with
-  | [] => u
-  | t::ctx => subst_list (S k) ctx (subst u k t)
-  end.
 
-(* recursively substitute each local context *)
-Fixpoint flatten (u : eterm) : term :=
-  let '(closure ctx t) := u in subst_list 0 (map flatten ctx) t.
 
-Lemma subst_list_app k ctx s t :
-  subst_list k ctx (app s t) = app (subst_list k ctx s) (subst_list k ctx t).
-Proof.
-  elim: ctx k s t => /=; first done.
-  move=> t ctx IH k s' t'. by rewrite IH.
-Qed.
-
-Lemma subst_list_lam k ctx s :
-  subst_list k ctx (lam s) = lam (subst_list (S k) ctx s).
-Proof.
-  elim: ctx k s => /=; first done.
-  move=> t ctx IH k s. by rewrite IH.
-Qed.
 
 (*
 Forall (fun t => 
@@ -130,14 +109,7 @@ Forall (fun t =>
 (exists t', t = closure [] (subst_list 0 ctx t'))) ts ->
 *)
 
-Lemma Forall2_consE {X : Type} {P : X -> X -> Prop} {x1 l1 x2 l2} : 
-  Forall2 P (x1::l1) (x2::l2) -> P x1 x2 /\ Forall2 P l1 l2.
-Proof. move=> H. by inversion H. Qed.
 
-Inductive ctx_size : nat -> list eterm -> Prop :=
-  | ctx_size_nil : ctx_size 0 []
-  | ctx_size_cons n ctx1 m ctx2 t :
-      ctx_size n ctx1 -> ctx_size m ctx2 -> ctx_size (1+n+m) ((closure ctx1 t)::ctx2).
 
 Inductive closureT (P : list eterm -> Type) : eterm -> Type :=
   | closureT_closure ctx t : P ctx -> closureT P (closure ctx t).
@@ -187,6 +159,16 @@ Fixpoint term_size (t : term) : nat :=
   | lam s => 1 + term_size s
   end.
 
+Fixpoint eterm_size (u : eterm) : nat :=
+  let '(closure ctx t) := u in 1 + list_sum (map eterm_size ctx) + (term_size t).
+
+Definition context_size (ctx : list eterm) : nat :=
+  eterm_size (closure ctx (var 0)).
+
+Fixpoint eclosed (u : eterm) : Prop :=
+  let '(closure ctx t) := u in bound (length ctx) t /\ Forall id (map eclosed ctx).
+
+(*
 Definition eterm_size (u : eterm) : nat.
 Proof.
   refine (closure_rect (fun=> nat) _ u).
@@ -206,120 +188,259 @@ Defined.
 Lemma context_size_cons ctx1 t ctx2 :
   context_size ((closure ctx1 t)::ctx2) = 1 + (context_size ctx1) + (context_size ctx2).
 Proof. done. Qed.
+*)
 
+(*
+Lemma bound_ren_S k n : bound (S k) (ren S t) -> bound k t.
+Proof. move=> H. apply: dclvar. inversion H. lia. Qed.
+*)
 
-(* induction/recursion principle wrt. a decreasing measure f *)
-(* example: elim /(measure_rect length) : l. *)
-Lemma measure_rect {X : Type} (f : X -> nat) (P : X -> Type) : 
-  (forall x, (forall y, f y < f x -> P y) -> P x) -> forall (x : X), P x.
+Lemma boundE k s : bound k s ->
+  match s with
+  | var n => k > n
+  | app s t => bound k s /\ bound k t
+  | lam s => bound (S k) s
+  end.
+Proof. by case. Qed.
+
+Lemma bound_var_S k n : bound (S k) (var (S n)) -> bound k (var n).
+Proof. move=> /boundE ?. apply: dclvar. lia. Qed.
+
+Lemma subst_list_bound k ts s : bound k s -> subst_list k ts s = s.
 Proof.
-  exact: (well_founded_induction_type (Wf_nat.well_founded_lt_compat X f _ (fun _ _ => id)) P).
+  elim: s k.
+  - move=> n k /boundE /= ?. rewrite app_nth1.
+    { by rewrite map_length seq_length. }
+    by rewrite map_nth seq_nth.
+  - by move=> s IH1 t IH2 k /boundE /= [/IH1 -> /IH2 ->].
+  - by move=> s IH k /boundE /= /IH ->.
 Qed.
 
+(*
+Lemma subst_list_S k ts s : subst_list (S k) ts s = subst_list k ((var k)::ts) s.
+Proof.
+  elim: s k.
+  - 
+*)
 
-Lemma ind_on_der ts1 ts2 ctx1 ctx2 s1 s2:
-  Forall2 (fun t1 t2 => flatten t1 = flatten t2) ts1 ts2 ->
-  flatten (closure ctx1 s1) = flatten (closure ctx2 s2) ->
+(* TODO simplify? *)
+Lemma subst_list_bound_cons k u ts s : bound (S k) u ->
+  subst_list k (u :: ts) s = subst_list (S k) ts (subst s k u).
+Proof.
+  elim: s k.
+  - move=> n k /=.
+    case Hnk: (Nat.eqb n k).
+    + move: Hnk => /Nat.eqb_eq <-.
+      move=> ?. rewrite subst_list_bound; first done.
+      have En : n = length (map var (seq 0 n)).
+      { by rewrite map_length seq_length. }
+      by rewrite [n in nth n]En nth_middle.
+    + move: Hnk => /Nat.eqb_neq ? _.
+      rewrite /subst_list.
+      have [?|?] : n < k \/ n > k by lia.
+      * rewrite app_nth1.
+        { by rewrite map_length seq_length. }
+        rewrite app_nth1.
+        { rewrite map_length seq_length. lia. }
+        rewrite !map_nth. congr var.
+        rewrite !seq_nth; lia.
+      * have -> : u :: ts = [u] ++ ts by done.
+        rewrite app_assoc.
+        rewrite app_nth2.
+        { rewrite app_length map_length seq_length /=. lia. }
+        rewrite app_nth2.
+        { rewrite map_length seq_length. lia. }
+        congr nth. rewrite app_length !map_length !seq_length /=. lia.
+  - move=> ? IH1 ? IH2 ? /= ?. by rewrite ?IH1 ?IH2.
+  - move=> ? IH k /= ?. rewrite IH; last done.
+    by apply: (@bound_gt (S k)).
+Qed.
+
+Lemma subst_list_closed_cons k u ts s : Forall closed ts ->
+  subst_list k (u :: ts) s = subst (subst_list (S k) ts s) k u.
+Proof.
+  move=> Hts.
+  elim: s k.
+  - move=> n k. have [?|[?|?]] : n < k \/ n = k \/ n  > k by lia.
+    + move Ek': (S k) => k' /=.
+      have Hnk : Nat.eqb n k = false. { apply /Nat.eqb_neq. lia. }
+      rewrite app_nth1.
+      { by rewrite map_length seq_length. }
+      rewrite app_nth1.
+      { rewrite map_length seq_length. lia. }
+      rewrite !map_nth !seq_nth /= ?Hnk; by [|lia].
+    + move Ek': (S k) => k' /=.
+      rewrite app_nth2.
+      { rewrite map_length seq_length /=. lia. }
+      have -> : k' = k + 1 by lia.
+      rewrite seq_app map_app -app_assoc app_nth2.
+      { rewrite map_length seq_length. lia. }
+      rewrite !map_length !seq_length. have -> : n - k = 0 by lia.
+      by rewrite /= Nat.eqb_refl.
+    + move Ek': (S k) => k' /=.
+      have Hnk : Nat.eqb n k = false. { apply /Nat.eqb_neq. lia. }
+      have -> : u :: ts = [u] ++ ts by done.
+      rewrite app_assoc app_nth2.
+      { rewrite app_length map_length seq_length /=. lia. }
+      rewrite app_nth2.
+      { rewrite map_length seq_length. lia. }
+      rewrite !app_length !map_length !seq_length /=.
+      have -> : n - k' = n - (k + 1) by lia.
+      elim: ts Hts (n - (k + 1)).
+      * move=> ? [|?] /=; by rewrite Hnk.
+      * move=> ? ? IH /Forall_cons_iff [H /IH {}IH].
+        move=> [|?] /=; [by rewrite H | by apply: IH].
+  - move=> ? IH1 ? IH2 /= ?. by rewrite IH1 IH2.
+  - move=> ? IH /= ?. by rewrite IH.
+Qed.
+
+Lemma subst_list_closed k ts s : closed s ->
+  subst_list k ts s = s.
+Proof. Admitted.
+
+(* does not hold
+    s1 = var k+2, ts1[2] = var k
+    s2 = var k
+
+Lemma subst_list_cons k u s1 ts1 s2 ts2 :
+  subst_list (S k) ts1 s1 = subst_list (S k) ts2 s2 ->
+  subst_list k (u :: ts1) s1 = subst_list k (u :: ts2) s2.
+Proof.
+Admitted.
+*)
+
+(*  move=> Hu.
+  rewrite subst_list_bound_cons.
+  { apply: (@bound_ge 0); [by apply /closed_dcl|lia]. }
+  rewrite subst_list_bound_cons.
+  { apply: (@bound_ge 0); [by apply /closed_dcl|lia]. }
+  
+  elim: s1 k s2.
+  - move=> n k s2 /=. admit.
+  - move=> ? IH1 ? IH2 k [].
+    + move=> [|n]; first done.
+      move=> /=.  admit.
+    + by move=> ? ? /= [] /IH1 -> /IH2 ->.
+    + done.
+Admitted.
+*)
+
+Lemma eclosed_closed_flatten {u} : eclosed u -> closed (flatten u).
+Proof.
+  case: u => [ctx t].
+  elim /(measure_rect context_size): ctx t.
+  move=> ctx IH. elim.
+  - move=> n /=. Search nth.
+    move=> [/boundE] /(nth_split ctx) H' Hctx.
+    have [ctx1 [ctx2 [Ectx ?]]] := H' (closure [] (lam (var 0))).
+    rewrite Ectx map_app app_nth2 !map_length /=. { lia. }
+    have -> : n - length ctx1 = 0 by lia.
+    move E': (nth n ctx _) => [ctx' t'].
+    apply: IH.
+    + rewrite Ectx E'. admit. (* easy *) 
+    + admit. (* doable, maybe nth_error better *)
+  - move=> ? IH1 ? IH2 /=.
+    move=> [/boundE [? ?]] ?.
+    by apply: app_closed; [apply: IH1 | apply: IH2].
+  - move=> ? IH' /=.
+    move=> [/boundE ?] ?.
+ Admitted.
+
+Lemma Forall_eclosed_closed_flatten {ctx} :
+  Forall id (map eclosed ctx) -> Forall closed (map flatten ctx).
+Proof.
+  move=> /Forall_forall H. apply /Forall_forall.
+  move=> t /in_map_iff [u] [<-] Hu.
+  apply: eclosed_closed_flatten. apply: H. by apply: in_map.
+Qed.
+
+(* halt_cbn is invariant closure flattening *)
+Lemma halt_cbn_flatten_iff ts1 ts2 ctx1 ctx2 s1 s2:
   halt_cbn ts1 ctx1 s1 ->
+  Forall id (map eclosed ts1) ->
+  Forall id (map eclosed ts2) ->
+  Forall2 (fun t1 t2 => flatten t1 = flatten t2) ts1 ts2 ->
+  eclosed (closure ctx1 s1) ->
+  eclosed (closure ctx2 s2) ->
+  flatten (closure ctx1 s1) = flatten (closure ctx2 s2) ->
   halt_cbn ts2 ctx2 s2.
 Proof.
-  move=> ++ H. elim: H ts2 ctx2 s2; clear ts1 ctx1 s1.
+  move=> H. elim: H ts2 ctx2 s2; clear ts1 ctx1 s1.
   - move=> ts ctx t ctx' ? IH ts2 ctx2 s2.
-    move=> ? /= ?.
-    have : flatten (closure ctx t) = flatten (closure ctx2 s2) by admit.
-    move=> ?.
-    by apply: (IH ts2 ctx2 s2).
-  - move=> ts1 ctx1 n t ? IH ts2 ctx2 s2 ?.
-    move=> /= ?.
-    apply: (IH ts2 ctx2 s2).
-    done.
-    admit. (* by closedness *)
-  - move=> ts1 ctx1 s t ? IH ts2 ctx2 s2 ?.
-    move=> /=. rewrite subst_list_app.
-    (* maybe here induction on ctx2 size for var elimination? *)
-    case: s2.
-    + move=> [|n]; last by admit.
-      case: ctx2 => [|t2 ctx2]; first done.
-      move=> /=.
-      have ->: subst_list 1 (map flatten ctx2) (flatten t2) = flatten t2.
-      admit.
-      case: t2 => ctx' t2.
-      have : exists t21 t22, t2 = app t21 t22 by admit.
-      (* variable case problematic? needs more recursion? *)
-      move=> [t21] [t22] -> /=.
-      rewrite subst_list_app.
-      move=> [??]. apply: halt_var_0. apply: halt_app.
-      apply: IH.
-      admit. admit. (* looks good *)
-    + move=> ??.       rewrite subst_list_app.
-    move=> [??].  apply: halt_app.
-    apply: IH. admit. admit. (* looks good *)
-    + admit.
-  - move=> t1 ts1 ctx1 s1 ? IH ts2 ctx2 s2.
-    case: ts2 => [|t2 ts2].
-    { move=> H. inversion H. }
-    move=> /Forall2_consE [??].
-    case: s2.
-    + move=> [|n]; last admit.
-      move=> /=.
-      case: ctx2 => [|[ctx2' t2'] ctx2]; first admit.
-      move=> /= ?.
-      apply: halt_var_0.
-      have : exists t2'', t2' = lam t2'' by admit.
-      move=> [? ->].
-      apply: halt_lam_ts.
-      apply: IH.
-      done.
-      admit. (* looks promising *)
-    + admit.
-    + move=> s2 /=. rewrite !subst_list_lam.
-      move=> [?].       apply: halt_lam_ts.
-      apply: IH. done.
-      admit.
-  - admit. (* similar *)
-
-
-
-  elim /(measure_rect context_size): ctx1 s1 ts1 s2 ts2 ctx2.
-  move=> ctx1 IH s1.
-  elim: s1 ctx1 IH.
-  - move=> [|n] [|[ctx' t'] ctx1].
-    + by move=> ? > ?? /halt_cbnE.
-    + move=> IH ts1 s2 ts2 ctx2 /= ??.
-      move=> /halt_cbnE. apply: IH.
-      * move=> /=. rewrite context_size_cons. lia.
-      * done.
-      * admit. (* doable *)
-    + by move=> ? > ?? /halt_cbnE.
-    + move=> IH ts1 s2 ts2 ctx2 /= ??.
-      move=> /halt_cbnE. apply: IH.
-      * move=> /=. rewrite context_size_cons. lia.
-      * done.
-      * admit. (* doable *)
-  - move=> s'1 IH1. s'2 IH2 ts1 s2 ts2 ctx1 ctx2 /=.
-    move=> Hts. rewrite subst_list_app.
-    case: s2.
-    + admit.
-    + move=> s''1 s''2. rewrite subst_list_app.
-      move=> [] /IH1 {}IH1 ?.
-      move=> /halt_cbnE ?. apply: halt_app.
-      apply: IH1; [|eassumption].
-      by  constructor.
-    + move=> ?. by rewrite subst_list_lam.
-  - move=> s'1 IH ts1 s2 ts2 ctx1 ctx2 /=. case: s2.
-    + admit.
-    + move=> >. by rewrite subst_list_app subst_list_lam.
-    + move=> s'2 Hts. rewrite !subst_list_lam.
-      move=> [?].
-      move: ts2 ts1 Hts => [|t1 ts1] [|t2 ts2].
-      * move=> *. by apply: halt_lam.
-      * move=> *. by apply: halt_lam.
-      * move=> H. by inversion H.
-      * move=> /Forall2_consE [? ?] /halt_cbnE H'. apply: halt_lam_ts.
-        move: H'. apply: IH.
-        ** done.
-        ** move=> /=. admit. (* doable with well-formedness *)
-*)
+    move=> /= ??? [? /Forall_cons_iff [? ?]] ?.
+    by apply: IH.
+  - move=> ts1 ctx1 n t ? IH ts2 ctx2 s2.
+    move=> /= ??? [/bound_var_S Hn] /Forall_cons_iff [? ?] ??.
+    apply: IH => //=.
+    rewrite (nth_indep _ (var n) (var (S n))); last done.
+    rewrite map_length. by move: Hn => /boundE.
+  - move=> ts1 ctx1 s t ? IH ts2 ctx2 s2.
+    move=> /= ? ?? [/boundE [? ?] ?].
+    elim /(measure_rect context_size): ctx2 s2.
+    move=> ctx2 IH' []. 
+    + (* s2 is (var n) *)
+      move: ctx2 IH' => [|[ctx'2 t'2] ctx2] IH'.
+      { move=> ? [/boundE] /=. lia. }
+      move=> /= + [+ /Forall_cons_iff [? ?]].
+      move=> [|n].
+      * move=> _ /= ?. apply: halt_var_0. apply: IH'=> //=.
+        rewrite /context_size /=. lia.
+      * move=> /bound_var_S /[dup] ? /boundE ?.
+        rewrite (nth_indep _ (var (S n)) (var n)).
+        { by rewrite map_length. }
+        move=> ?. apply: halt_var_S. apply: IH'=> //=.
+        rewrite /context_size /=. lia.
+    + move=> ?? /= [] /boundE [? ?] ? [? ?].
+      apply: halt_app. apply: IH => //=.
+      all: by constructor.
+    + done.
+  - move=> t1 ts1 ctx1 s1 ? IH [|t2 ts2] ctx2 s2.
+    { move=> _ _ H. by inversion H. }
+    move=> /= /Forall_cons_iff [Ht1 ?] /Forall_cons_iff [Ht2 ?].
+    move=> /Forall2_consE [Ht1t2 ?] [/boundE ? Hctx1].
+    elim /(measure_rect context_size): ctx2 s2.
+    move=> ctx2 IH'. case. 
+    + (* s2 is (var n) *)
+      move: ctx2 IH' => [|[ctx'2 t'2] ctx2] IH'.
+      { move=> ? [/boundE] /=. lia. }
+      move=> /= + [+ /Forall_cons_iff [? ?]].
+      move=> [|n].
+      * move=> _ /= ?. apply: halt_var_0. apply: IH'=> //=.
+        rewrite /context_size /=. lia.
+      * move=> /bound_var_S /[dup] ? /boundE ?.
+        rewrite (nth_indep _ (var (S n)) (var n)).
+        { by rewrite map_length. }
+        move=> ?. apply: halt_var_S. apply: IH'=> //=.
+        rewrite /context_size /=. lia.
+    + done.
+    + move=> ? [] /= /boundE ? ? [?].
+      apply: halt_lam_ts. apply: IH => //=.
+      1-2: by constructor; [|constructor].
+      rewrite Ht1t2. rewrite !subst_list_closed_cons.
+      * by apply: Forall_eclosed_closed_flatten.
+      * by apply: Forall_eclosed_closed_flatten.
+      * by congr subst.
+  - move=> ctx1 s1 [|t2 ts2] ctx2 s2; first last.
+    { move=> _ _ H. by inversion H. }
+    move=> _ _ _ /= [/boundE ?] ?.
+    elim /(measure_rect context_size): ctx2 s2.
+    move=> ctx2 IH'. case. 
+    + (* s2 is (var n) *)
+      move: ctx2 IH' => [|[ctx'2 t'2] ctx2] IH'.
+      { move=> ? [/boundE] /=. lia. }
+      move=> /= + [+ /Forall_cons_iff [? ?]].
+      move=> [|n].
+      * move=> _ /= ?. apply: halt_var_0. apply: IH'=> //=.
+        rewrite /context_size /=. lia.
+      * move=> /bound_var_S /[dup] ? /boundE ?.
+        rewrite (nth_indep _ (var (S n)) (var n)).
+        { by rewrite map_length. }
+        move=> ?. apply: halt_var_S. apply: IH'=> //=.
+        rewrite /context_size /=. lia.
+    + done.
+    + move=> *. by apply: halt_lam.
+Qed.
+Print Assumptions halt_cbn_flatten_iff.
 
 (* interpreter *)
 Definition many_app s ts := fold_left app ts s.
