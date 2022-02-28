@@ -74,19 +74,6 @@ Definition context_size (ctx : list eterm) : nat :=
 Fixpoint eclosed (u : eterm) : Prop :=
   let '(closure ctx t) := u in bound (length ctx) t /\ Forall id (map eclosed ctx).
 
-Fixpoint subst_list k (ts : list term) (u : term) : term :=
-  match u with
-  | var n => nth n ((map var (seq 0 k)) ++ ts) (var n)
-  | app s t => app (subst_list k ts s) (subst_list k ts t)
-  | lam s => lam (subst_list (S k) ts s)
-  end.
-
-(* recursively substitute each local context *)
-Fixpoint flatten (u : eterm) : term :=
-  let '(closure ctx t) := u in subst_list 0 (map flatten ctx) t.
-
-  
-(* induction/recursion principle wrt. a decreasing measure f *)
 (* example: elim /(measure_rect length) : l. *)
 Lemma measure_rect {X : Type} (f : X -> nat) (P : X -> Type) : 
 (forall x, (forall y, f y < f x -> P y) -> P x) -> forall (x : X), P x.
@@ -94,14 +81,125 @@ Proof.
 exact: (well_founded_induction_type (Wf_nat.well_founded_lt_compat X f _ (fun _ _ => id)) P).
 Qed.
 
+(* function composition *)
+Definition funcomp {X Y Z} (g : Y -> Z) (f : X -> Y) :=
+  fun x => g (f x).
+
+(* stream cons *)
+Definition scons {X: Type} (x : X) (xi : nat -> X) :=
+  fun n => match n with | 0 => x | S n => xi n end.
+
+Fixpoint ren (xi : nat -> nat) (t : term) : term  :=
+  match t with
+  | var x => var (xi x)
+  | app s t => app (ren xi s) (ren xi t)
+  | lam t => lam (ren (scons 0 (funcomp S xi)) t)
+  end.
+
+Fixpoint subst (sigma: nat -> term)  (s: term) : term :=
+  match s with
+  | var n => sigma n
+  | app s t => app (subst sigma s) (subst sigma t)
+  | lam s => lam (subst (scons (var 0) (funcomp (ren S) sigma)) s)
+  end.
+
+Definition many_subst (ts : list term) (s : term) : term :=
+  subst (fun n => nth n ts (var (n - length ts))) s.
+
+(* recursively substitute each local context, rename all free varaibles to 0 *)
+Fixpoint flatten (u : eterm) : term :=
+  let '(closure ctx t) := u in ren (fun=> 0) (many_subst (map flatten ctx) t).
+
+Lemma ext_ren_term xi1 xi2 t : (forall n, xi1 n = xi2 n) -> ren xi1 t = ren xi2 t.
+Proof.
+  elim: t xi1 xi2.
+  - move=> > /= ?. by congr var.
+  - move=> ? IH1 ? IH2 ?? Hxi /=. congr app; [by apply: IH1 | by apply: IH2].
+  - move=> ? IH > Hxi /=. congr lam. apply: IH.
+    case; first done. move=> ?. by congr S.
+Qed.
+
+Lemma ext_subst_term sigma1 sigma2 t : (forall n, sigma1 n = sigma2 n) ->
+  subst sigma1 t = subst sigma2 t.
+Proof.
+  elim: t sigma1 sigma2.
+  - by move=> > /= ?.
+  - move=> ? IH1 ? IH2 ?? Hsigma /=. congr app; [by apply: IH1 | by apply: IH2].
+  - move=> ? IH > Hsigma /=. congr lam. apply: IH.
+    case; first done. move=> ?. by rewrite /= /funcomp Hsigma.
+Qed.
+
+Lemma ren_ren_term xi1 xi2 t : ren xi2 (ren xi1 t) = ren (funcomp xi2 xi1) t.
+Proof.
+  elim: t xi1 xi2 => /=.
+  - done.
+  - move=> ? IH1 ? IH2 ??. by rewrite IH1 IH2.
+  - move=> ? IH ??. rewrite IH.
+    congr lam. apply: ext_ren_term. by case.
+Qed.
+
+Lemma ren_as_subst_term xi t : ren xi t = subst (funcomp var xi) t.
+Proof.
+  elim: t xi => /=.
+  - done.
+  - move=> ? IH1 ? IH2 ?. by rewrite IH1 IH2.
+  - move=> ? IH ?. rewrite IH.
+    congr lam. apply: ext_subst_term. by case.
+Qed.
+
+Lemma ren_subst_term xi sigma t : ren xi (subst sigma t) = subst (funcomp (ren xi) sigma) t.
+Proof.
+  elim: t xi sigma => /=.
+  - done.
+  - move=> ? IH1 ? IH2 ??. by rewrite IH1 IH2.
+  - move=> ? IH ??. rewrite IH.
+    congr lam. apply: ext_subst_term.
+    case; first done. move=> ?. by rewrite /funcomp /= !ren_ren_term.
+Qed.
+
+Lemma subst_ren_term xi sigma t : subst sigma (ren xi t) = subst (funcomp sigma xi) t.
+Proof.
+  elim: t xi sigma => /=.
+  - done.
+  - move=> ? IH1 ? IH2 ??. by rewrite IH1 IH2.
+  - move=> ? IH ??. rewrite IH.
+    congr lam. apply: ext_subst_term. by case.
+Qed.
+
+Lemma subst_subst_term sigma1 sigma2 t : subst sigma2 (subst sigma1 t) = subst (funcomp (subst sigma2) sigma1) t.
+Proof.
+  elim: t sigma1 sigma2 => /=.
+  - done.
+  - move=> ? IH1 ? IH2 ??. by rewrite IH1 IH2.
+  - move=> ? IH ??. rewrite IH.
+    congr lam. apply: ext_subst_term.
+    case; first done. move=> ?. rewrite /funcomp /=.
+    by rewrite !ren_subst_term !subst_ren_term.
+Qed.
+
+Lemma flatten_var_0 t ctx :
+  flatten (closure (t :: ctx) (var 0)) = flatten t.
+Proof. move: t => [? ?]. by rewrite /= /many_subst /= ren_ren_term. Qed.
+
 Lemma flatten_var_S t ctx n :
   flatten (closure (t :: ctx) (var (S n))) = flatten (closure ctx (var n)).
-Proof.
-Admitted.
+Proof. done. Qed.
 
 Lemma Forall2_consE {X : Type} {P : X -> X -> Prop} {x1 l1 x2 l2} : 
   Forall2 P (x1::l1) (x2::l2) -> P x1 x2 /\ Forall2 P l1 l2.
 Proof. move=> H. by inversion H. Qed.
+
+Lemma many_subst_cons u ts s : ren (fun=> 0) (many_subst (u :: ts) s) = 
+  subst (funcomp (ren (fun=> 0)) (scons u var))
+    (if ren (fun=> 0) (many_subst ts (lam s)) is lam t then t else var 0).
+Proof.
+  rewrite /many_subst /= !ren_subst_term !subst_subst_term.
+  apply: ext_subst_term.
+  move=> [|n] /=; first done.
+  rewrite /funcomp /=. move: (nth _ _ _) => ?.
+  rewrite !subst_ren_term ren_as_subst_term.
+  apply: ext_subst_term. by case.
+Qed.
 
 (* halt_cbn is invariant closure flattening *)
 Lemma halt_cbn_flatten_iff ts1 ts2 ctx1 ctx2 s1 s2:
@@ -112,6 +210,7 @@ Lemma halt_cbn_flatten_iff ts1 ts2 ctx1 ctx2 s1 s2:
 Proof.
   move=> H. elim: H ts2 ctx2 s2; clear ts1 ctx1 s1.
   - move=> ts ctx t ctx' ? IH ts2 ctx2 s2.
+    rewrite flatten_var_0.
     by move=> /IH /[apply].
   - move=> ts1 ctx1 n t ? IH ts2 ctx2 s2.
     rewrite flatten_var_S.
@@ -122,7 +221,8 @@ Proof.
     + (* s2 is (var n) *)
       move: ctx2 IH' => [|[ctx'2 t'2] ctx2] IH'. { by case. }
       move=> [|n].
-      * move=> /= ??. apply: halt_var_0. apply: IH' => //=.
+      * rewrite flatten_var_0.
+        move=> /= ??. apply: halt_var_0. apply: IH' => //=.
         rewrite /context_size /=. lia.
       * rewrite flatten_var_S.
         move=> /= ??. apply: halt_var_S. apply: IH' => //=.
@@ -139,23 +239,15 @@ Proof.
     + (* s2 is (var n) *)
       move: ctx2 IH' => [|[ctx'2 t'2] ctx2] IH'. { by case. }
       move=> [|n].
-      * move=> /= ?. apply: halt_var_0. apply: IH'=> //=.
+      * rewrite flatten_var_0.
+        move=> /= ?. apply: halt_var_0. apply: IH' => //=.
         rewrite /context_size /=. lia.
       * rewrite flatten_var_S.
         move=> /= ?. apply: halt_var_S. apply: IH' => //=.
         rewrite /context_size /=. lia.
     + done.
-    + (* may still work with proper flatten (subst with shift, no var 0 as target because of shift) *) move=> ? [] /= ?.
-      apply: halt_lam_ts. apply: IH => //=.
-      rewrite Ht1t2.
-      subst_list 1 (var 0) (var 1) =
-      var 0 =
-      subst_list 1 (var 0) (var 0)
-
-      subst_list 0 (x :: (var 0)) (var 1)
-      = var 0 <> x =
-      subst_list 0 (x :: (var 0)) (var 0)
-      admit. (* doublecheck, here is closedness! *)
+    + move=> s2 /= [Hs1s2]. apply: halt_lam_ts. apply: IH => //=.
+      by rewrite Ht1t2 !many_subst_cons /= Hs1s2.
   - move=> ctx1 s1 [|t2 ts2] ctx2 s2; first last.
     { move=> H. by inversion H. }
     move=> _.
@@ -164,24 +256,14 @@ Proof.
     + (* s2 is (var n) *)
       move: ctx2 IH' => [|[ctx'2 t'2] ctx2] IH'. { by case. }
       move=> [|n].
-      * move=> /= ?. apply: halt_var_0. apply: IH'=> //=.
+      * rewrite flatten_var_0.
+        move=> /= ?. apply: halt_var_0. apply: IH' => //=.
         rewrite /context_size /=. lia.
       * rewrite flatten_var_S.
         move=> /= ?. apply: halt_var_S. apply: IH' => //=.
         rewrite /context_size /=. lia.
     + done.
     + move=> *. by apply: halt_lam.
+Qed.
 
-
-(* halt_cbn is invariant closure flattening *)
-Lemma halt_cbn_flatten_iff ts1 ts2 ctx1 ctx2 s1 s2:
-  halt_cbn ts1 ctx1 s1 ->
-  Forall id (map eclosed ts1) ->
-  Forall id (map eclosed ts2) ->
-  Forall2 (fun t1 t2 => flatten t1 = flatten t2) ts1 ts2 ->
-  eclosed (closure ctx1 s1) ->
-  eclosed (closure ctx2 s2) ->
-  flatten (closure ctx1 s1) = flatten (closure ctx2 s2) ->
-  halt_cbn ts2 ctx2 s2.
-Proof.
-Admitted.
+Print Assumptions halt_cbn_flatten_iff.

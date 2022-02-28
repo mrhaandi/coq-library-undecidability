@@ -18,20 +18,6 @@ Inductive step : term -> term -> Prop :=
   | stepLam s t    : step (app (lam s) t) (subst s 0 t)
   | stepApp s s' t : step s s' -> step (app s t) (app s' t).
 
-  (* function composition *)
-Definition funcomp {X Y Z} (g : Y -> Z) (f : X -> Y) :=
-  fun x => g (f x).
-
-(* stream cons *)
-Definition scons {X: Type} (x : X) (xi : nat -> X) :=
-  fun n => match n with | 0 => x | S n => xi n end.
-
-Fixpoint ren (xi : nat -> nat) (t : term) : term  :=
-  match t with
-  | var x => var (xi x)
-  | app s t => app (ren xi s) (ren xi t)
-  | lam t => lam (ren (scons 0 (funcomp S xi)) t)
-  end.
 
 Fixpoint cbv_cbn (t : term) : term :=
   match t with
