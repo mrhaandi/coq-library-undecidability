@@ -822,26 +822,7 @@ Proof.
     move=> >. 
 *)
 
-(* take care that is works only for closed steps *)
-Lemma step_halt_cbn s t ts ctx : step s t ->
-  halt_cbn ts ctx s -> halt_cbn ts ctx t.
-Proof.
-  move=> Hst. elim: Hst ts ctx; clear s t.
-  - move=> s t ts ctx /halt_cbnE /halt_cbnE.
-    admit. (* needs closure resolution lemma *)
-  - move=> s s' t ? IH ts ctx /halt_cbnE /IH ?.
-    by apply: halt_app.
-Admitted.
 
-Lemma step_halt_cbn' s t ts ctx : step s t ->
-  halt_cbn ts ctx t -> halt_cbn ts ctx s.
-Proof.
-  move=> Hst. elim: Hst ts ctx; clear s t.
-  - move=> s t ts ctx H. apply: halt_app. apply: halt_lam_ts.
-    admit. (* needs closure resolution lemma *)
-  - move=> s s' t ? IH ts ctx /halt_cbnE /IH ?.
-    by apply: halt_app.
-Admitted.
 
 Inductive eval_cbn : term -> term -> Prop :=
   | eval_lam s :

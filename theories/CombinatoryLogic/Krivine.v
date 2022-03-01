@@ -106,6 +106,8 @@ Fixpoint subst (sigma: nat -> term)  (s: term) : term :=
 Definition many_subst (ts : list term) (s : term) : term :=
   subst (fun n => nth n ts (var (n - length ts))) s.
 
+Arguments many_subst ts !s /.
+
 (* recursively substitute each local context, rename all free varaibles to 0 *)
 Fixpoint flatten (u : eterm) : term :=
   let '(closure ctx t) := u in ren (fun=> 0) (many_subst (map flatten ctx) t).
@@ -177,6 +179,8 @@ Proof.
     by rewrite !ren_subst_term !subst_ren_term.
 Qed.
 
+Definition simpl_term := (ren_ren_term, ren_subst_term, subst_ren_term, subst_subst_term).
+
 Lemma flatten_var_0 t ctx :
   flatten (closure (t :: ctx) (var 0)) = flatten t.
 Proof. move: t => [? ?]. by rewrite /= /many_subst /= ren_ren_term. Qed.
@@ -202,9 +206,9 @@ Proof.
 Qed.
 
 (* halt_cbn is invariant closure flattening *)
-Lemma halt_cbn_flatten_iff ts1 ts2 ctx1 ctx2 s1 s2:
+Lemma halt_cbn_flatten_iff {ts1 ts2 ctx1 ctx2 s1 s2} :
   halt_cbn ts1 ctx1 s1 ->
-  Forall2 (fun t1 t2 => flatten t1 = flatten t2) ts1 ts2 ->
+  map flatten ts1 = map flatten ts2 ->
   flatten (closure ctx1 s1) = flatten (closure ctx2 s2) ->
   halt_cbn ts2 ctx2 s2.
 Proof.
@@ -229,11 +233,10 @@ Proof.
         rewrite /context_size /=. lia.
     + move=> ??? /= [] /IH {}IH ?.
       apply: halt_app. apply: IH => //=.
-      by constructor.
+      by congr cons.
     + done.
-  - move=> t1 ts1 ctx1 s1 ? IH [|t2 ts2] ctx2 s2.
-    { move=> H. by inversion H. }
-    move=> /Forall2_consE [Ht1t2 ?].
+  - move=> t1 ts1 ctx1 s1 ? IH [|t2 ts2] ctx2 s2; first done.
+    move=> [Ht1t2 ?].
     elim /(measure_rect context_size): ctx2 s2.
     move=> ctx2 IH' []. 
     + (* s2 is (var n) *)
@@ -248,8 +251,7 @@ Proof.
     + done.
     + move=> s2 /= [Hs1s2]. apply: halt_lam_ts. apply: IH => //=.
       by rewrite Ht1t2 !many_subst_cons /= Hs1s2.
-  - move=> ctx1 s1 [|t2 ts2] ctx2 s2; first last.
-    { move=> H. by inversion H. }
+  - move=> ctx1 s1 [|t2 ts2] ctx2 s2; last done.
     move=> _.
     elim /(measure_rect context_size): ctx2 s2.
     move=> ctx2 IH' []. 
@@ -266,4 +268,167 @@ Proof.
     + move=> *. by apply: halt_lam.
 Qed.
 
+Lemma halt_cbn_ren_S {ts ctx u s} :
+  halt_cbn ts ctx s ->
+  halt_cbn ts (u::ctx) (ren S s).
+Proof.
+  move=> /halt_cbn_flatten_iff. apply; first done.
+  - by rewrite /= /many_subst !simpl_term.
+Qed.
+
 Print Assumptions halt_cbn_flatten_iff.
+
+(* left-most outer-most call-by-name *)
+Inductive step : term -> term -> Prop :=
+  | stepLam s t    : step (app (lam s) t) (subst (scons t var) s)
+  | stepApp s s' t : step s s' -> step (app s t) (app s' t).
+
+Lemma stepE s t :
+  step s t ->
+  match s with
+  | app (lam s1) s2 => t = subst (scons s2 var) s1
+  | app (app s1 s2) s3 => exists s', t = app s' s3 /\ step (app s1 s2) s'
+  | _ => False
+  end.
+Proof.
+  elim; first done.
+  case; [done| |done].
+  move=> []; [done| |].
+  - move=> > ? [?] [-> ?].
+    eexists. split; [done|by apply: stepApp].
+  - move=> > ? ->. eexists. split; [done|by apply: stepLam].
+Qed.
+
+Lemma step_fun s t1 t2 : step s t1 -> step s t2 -> t1 = t2.
+Proof.
+  move=> H. elim: H t2.
+  - by move=> > /stepE ->.
+  - case.
+    + by move=> > /stepE.
+    + by move=> > ? IH t2 /stepE [?] [->] /IH ->.
+    + by move=> > /stepE.
+Qed.
+
+Arguments clos_refl_trans {A}.
+Arguments clos_trans {A}.
+(*
+Inductive crt_length : nat -> term -> term -> Prop :=
+  | crt_length_refl t : crt_length 0 t t
+  | 
+*)
+
+Print clos_refl_trans_1n_ind.
+
+Lemma step_aux (P : term -> Prop) :
+  (forall s, (forall u, clos_trans step s u -> P u) -> P s) -> 
+  forall s t,
+    clos_refl_trans step s t -> P t -> (forall u, not (clos_refl_trans step t u)) -> P s.
+Proof.
+  move=> IH ?? /(@clos_rt_rt1n term). elim; first done.
+  move=> s s' t Hss' Hs't IH' Ht H't. apply: (IH).
+  move=> u /(@clos_trans_t1n_iff term) Hsu.
+  case: Hsu Hss'.
+  + move=> ? /step_fun /[apply] ->. by apply: IH'.
+  + move=> > + ?. move=> /step_fun /[apply] ?. subst.
+    apply: (IH).
+      case: Hs't IH H't Ht; clear t.
+      * done.
+      * move=> s'' t Hs's'' Hs''t IH1 IH2 Ht. apply: IH1; [done| |done].
+        apply.
+        admit.
+
+  elim´´´´
+
+Lemma step_aux s t (P : term -> Prop) : (forall u, not (clos_refl_trans step t u)) ->
+  ((forall u, clos_trans step s u -> P u) -> P s) -> P t -> clos_refl_trans step s t -> P s.
+Proof.
+  move=> H1 H2 H3 /(@clos_rt_rt1n term) Hst.
+  elim: Hst H1 H2 H3; clear s t.
+  - done.
+  - move=> s s' t Hss' Hs't IH H't IH' Ht. apply: IH'.
+    move=> u /(@clos_trans_t1n_iff term) Hsu.
+    case: Hsu Hss'.
+    + move=> ? /step_fun /[apply] ->.
+      case: Hs't IH H't Ht; clear t.
+      * done.
+      * move=> s'' t Hs's'' Hs''t IH1 IH2 Ht. apply: IH1; [done| |done].
+        apply.
+        admit.
+    + move=> > + ?. move=> /step_fun /[apply] ?. subst.
+
+        done. 
+    apply: (IH).
+    done. apply.  admit.  done.
+    admit. admit.
+  - done.
+  -  
+Admitted.
+
+Lemma test s t : clos_refl_trans step s t -> False.
+Proof.
+  apply: step_aux.
+  - admit.
+  -  
+  
+
+
+Lemma ren_closed {xi t} : closed t -> ren xi t = t.
+Proof. Admitted.
+  
+Lemma subst_closed {sigma t} : closed t -> subst sigma t = t.
+Proof. Admitted.
+
+Lemma many_subst_closed {ts t} : closed t -> many_subst ts t = t.
+Proof. move=> /subst_closed. by apply. Qed.
+
+Lemma L_subst_subst s k t :
+  closed t -> L.subst s k t = subst (fun n => if Nat.eqb n k then t else var n) s.
+Proof.
+  move=> Ht. elim: s k.
+  - done. 
+  - move=> ? IH1 ? IH2 ? /=. by rewrite IH1 IH2.
+  - move=> ? IH k /=. rewrite IH.
+    congr lam. apply: ext_subst_term.
+    rewrite /funcomp /=.
+    move=> [|n] /=; first done.
+    case: (Nat.eqb n k); last done.
+    by rewrite (ren_closed Ht).
+Qed.
+
+Lemma step_halt_cbn s t ts ctx : closed s -> step s t ->
+  halt_cbn ts ctx s -> halt_cbn ts ctx t.
+Proof.
+  move=> Hs Hst. elim: Hst Hs ts ctx; clear s t.
+  - move=> s t /closed_app [Hs Ht] ts ctx /halt_cbnE /halt_cbnE.
+    move=> /halt_cbn_flatten_iff. apply; first done.
+    rewrite /= /many_subst /= !simpl_term. apply: ext_subst_term.
+    rewrite /funcomp /=. move=> [|n] /=; last done.
+    rewrite !simpl_term. apply: ext_subst_term.
+    move=> n. by rewrite /funcomp /= !simpl_term.
+  - move=> s s' t ? IH /closed_app [Hs Ht] ts ctx /halt_cbnE /IH {}IH.
+    apply: halt_app. by apply: IH.
+Qed.
+
+Lemma step_halt_cbn' s t ts ctx : closed s -> step s t ->
+  halt_cbn ts ctx t -> halt_cbn ts ctx s.
+Proof.
+  move=> Hs Hst. elim: Hst Hs ts ctx; clear s t.
+  - move=> s t /closed_app [Hs Ht] ts ctx H'.
+    apply: halt_app. apply: halt_lam_ts.
+    apply: (halt_cbn_flatten_iff H'); first done.
+    rewrite /= /many_subst /= !simpl_term. apply: ext_subst_term.
+    rewrite /funcomp /=. move=> [|n] /=; last done.
+    rewrite !simpl_term. apply: ext_subst_term.
+    move=> n. by rewrite /funcomp /= !simpl_term.
+  - move=> s s' t ? IH /closed_app [Hs Ht] ts ctx /halt_cbnE /IH {}IH.
+    apply: halt_app. by apply: IH.
+Qed.
+
+(* maybe this is needed? *)
+Lemma halt_cbn_spec ts ctx s : halt_cbn ts ctx s ->
+  exists t, clos_refl_trans term step (flatten (closure ctx s)) (lam t).
+Proof.
+  elim.
+  - move=> > ? [t IH]. exists t.
+    move: IH. by rewrite /= !simpl_term.
+Admitted.
