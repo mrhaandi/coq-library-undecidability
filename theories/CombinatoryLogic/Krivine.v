@@ -85,6 +85,8 @@ Qed.
 Definition funcomp {X Y Z} (g : Y -> Z) (f : X -> Y) :=
   fun x => g (f x).
 
+Arguments funcomp {X Y Z} (g f) /.
+
 (* stream cons *)
 Definition scons {X: Type} (x : X) (xi : nat -> X) :=
   fun n => match n with | 0 => x | S n => xi n end.
@@ -179,7 +181,16 @@ Proof.
     by rewrite !ren_subst_term !subst_ren_term.
 Qed.
 
-Definition simpl_term := (ren_ren_term, ren_subst_term, subst_ren_term, subst_subst_term).
+Lemma subst_var_term s : subst var s = s.
+Proof.
+  elim: s.
+  - done.
+  - move=> ? IH1 ? IH2 /=. by rewrite IH1 IH2.
+  - move=> ? IH /=. congr lam. rewrite -[RHS]IH.
+    apply: ext_subst_term. by case.
+Qed.
+
+Definition simpl_term := (ren_ren_term, ren_subst_term, subst_ren_term, subst_subst_term, subst_var_term).
 
 Lemma flatten_var_0 t ctx :
   flatten (closure (t :: ctx) (var 0)) = flatten t.
@@ -276,8 +287,6 @@ Proof.
   - by rewrite /= /many_subst !simpl_term.
 Qed.
 
-Print Assumptions halt_cbn_flatten_iff.
-
 (* left-most outer-most call-by-name *)
 Inductive step : term -> term -> Prop :=
   | stepLam s t    : step (app (lam s) t) (subst (scons t var) s)
@@ -309,6 +318,69 @@ Proof.
     + by move=> > /stepE.
 Qed.
 
+Fixpoint stepf (s : term) : option term :=
+  match s with
+  | app s' t =>
+      match s' with
+      | lam s'' => Some (subst (scons t var) s'')
+      | _ => 
+          match stepf s' with
+          | Some s'' => Some (app s'' t)
+          | None => None
+          end
+      end
+  | _ => None
+  end.
+
+Lemma step_stepf s t : step s t -> stepf s = Some t.
+Proof.
+  elim; first done.
+  case; [done| |done].
+  by move=> > /= ? ->.
+Qed.
+
+Lemma stepf_step s t : stepf s = Some t -> step s t.
+Proof.
+  elim: s t; [done| |done].
+  case; [done| |].
+  - move=> s1 s2 IH1 s3 IH2 t.
+    move: IH1. case E': (stepf (app s1 s2)) => [t'|].
+    + move=> /(_ t' erefl) ?.
+      move: E' => /= -> [<-]. by apply: stepApp.
+    + by move: E' => /= ->.
+  - move=> > ? > ?? /= [<-]. by apply: stepLam.
+Qed.
+
+Definition stepsf n s := Nat.iter n (obind stepf) (Some s).
+
+Lemma iter_plus {X} (f : X -> X) (x : X) n m : Nat.iter (n + m) f x = Nat.iter m f (Nat.iter n f x).
+Proof.
+  elim: m; first by rewrite Nat.add_0_r.
+  move=> m /= <-. by have ->: n + S m = S n + m by lia.
+Qed.
+
+Lemma oiter_None {X : Type} (f : X -> option X) k : Nat.iter k (obind f) None = None.
+Proof. elim: k; [done | by move=> /= ? ->]. Qed.
+
+(*
+Lemma oiter_plus {X : Type} (f : X -> option X) n m s :
+  Nat.iter (n + m) (obind f) (Some s) = (Nat.iter m (obind f)) (Nat.iter n (obind f) (Some s)).
+Proof.
+  elim: m.
+  - have -> : n + 0 = n by lia. by case: (stepsf n s).
+  - move=> m IH /=.
+    have -> : n + S m = S (n + m) by lia.
+    rewrite /= IH. by case: (stepsf n s).
+Qed.
+*)
+
+Lemma stepsf_plus n m s : stepsf (n + m) s = (obind (stepsf m)) (stepsf n s).
+Proof.
+  rewrite /stepsf iter_plus. case: (Nat.iter n _ _); [done|by rewrite oiter_None].
+Qed.
+
+Arguments stepsf : simpl never.
+
 Arguments clos_refl_trans {A}.
 Arguments clos_trans {A}.
 (*
@@ -317,8 +389,7 @@ Inductive crt_length : nat -> term -> term -> Prop :=
   | 
 *)
 
-Print clos_refl_trans_1n_ind.
-
+(*
 Lemma step_aux (P : term -> Prop) :
   (forall s, (forall u, clos_trans step s u -> P u) -> P s) -> 
   forall s t,
@@ -336,8 +407,6 @@ Proof.
       * move=> s'' t Hs's'' Hs''t IH1 IH2 Ht. apply: IH1; [done| |done].
         apply.
         admit.
-
-  elim´´´´
 
 Lemma step_aux s t (P : term -> Prop) : (forall u, not (clos_refl_trans step t u)) ->
   ((forall u, clos_trans step s u -> P u) -> P s) -> P t -> clos_refl_trans step s t -> P s.
@@ -370,11 +439,37 @@ Proof.
   - admit.
   -  
   
+*)
 
+
+Lemma boundE k s : bound k s ->
+  match s with
+  | var n => k > n
+  | app s t => bound k s /\ bound k t
+  | lam s => bound (S k) s
+  end.
+Proof. by case. Qed.
+
+Lemma bound_ext_subst_term {k sigma1 sigma2 s} : bound k s -> (forall n, n < k -> sigma1 n = sigma2 n) ->
+  subst sigma1 s = subst sigma2 s.
+Proof.
+  elim: s k sigma1 sigma2.
+  - move=> > /boundE /= ?. by apply.
+  - move=> ? IH1 ? IH2 k sigma1 sigma2 /boundE + ? /=.
+    move=> [/IH1] => /(_ sigma1 sigma2) ->; first done.
+    by move=> /IH2 => /(_ sigma1 sigma2) ->.
+  - move=> ? IH k sigma1 sigma2 /boundE /IH {}IH H /=. congr lam.
+    apply: IH.
+    move=> [|n]; first done.
+    move=> /= ?. rewrite H; [lia|done].
+Qed.
 
 Lemma ren_closed {xi t} : closed t -> ren xi t = t.
-Proof. Admitted.
-  
+Proof.
+  move=> /closed_dcl /bound_ext_subst_term.
+  rewrite ren_as_subst_term -[RHS]subst_var_term. apply. lia.
+Qed.
+
 Lemma subst_closed {sigma t} : closed t -> subst sigma t = t.
 Proof. Admitted.
 
@@ -424,7 +519,7 @@ Proof.
     apply: halt_app. by apply: IH.
 Qed.
 
-(* maybe this is needed? *)
+(* maybe this is needed? 
 Lemma halt_cbn_spec ts ctx s : halt_cbn ts ctx s ->
   exists t, clos_refl_trans term step (flatten (closure ctx s)) (lam t).
 Proof.
@@ -432,3 +527,4 @@ Proof.
   - move=> > ? [t IH]. exists t.
     move: IH. by rewrite /= !simpl_term.
 Admitted.
+*)
