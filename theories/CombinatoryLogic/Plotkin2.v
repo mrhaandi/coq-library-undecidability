@@ -29,7 +29,6 @@ Definition Psi (t : term) :=
   | lam s => lam (cbv_cbn s)
   end.
 
-
 Lemma cbv_cbn_ren xi s : cbv_cbn (ren xi s) = ren xi (cbv_cbn s).
 Proof.
   elim: s xi.
@@ -66,12 +65,6 @@ Proof.
     by case.
 Qed.
 
-Definition is_app (t : term) :=
-  if t is app _ _ then true else false.
-
-Definition is_lam (t : term) :=
-  if t is lam _ then true else false.
-
 Import Coq.Init.Datatypes (id).
 Arguments id : simpl never.
 
@@ -87,14 +80,6 @@ Fixpoint colon s u :=
       end
   end.
 
-(*
-  if is_app s1 then
-  colon s1 (lam (app (ren S (cbv_cbn s2)) (lam (app (app (var 1) (var 0)) (ren S (ren S u))))))
-else if is_app s2 then
-  colon s2 (lam (app (app (ren S (Psi s1)) (var 0)) u))
-else
-  app (app (Psi s1) (Psi s2)) u
-*)
 Import Relation_Operators (t1n_trans).
 
 Inductive cbv_step : term -> term -> Prop :=
@@ -283,38 +268,6 @@ Proof.
     rewrite -[LHS]subst_var_term. apply: ext_subst_term. by case.
 Qed.
 
-(*
-Lemma stepsf_to_colon s u : closed s -> exists n, stepsf (S n) (app (cbv_cbn s) u) = Some (colon s u).
-Proof.
-  elim: s u.
-  - by move=> > /not_closed_var.
-  - move=> s IH1 t IH2 u /= /closed_app [/[dup] Hs /IH1 {}IH1 /IH2 {}IH2].
-    have [n1 Hn1] := IH1 (lam (app (ren S (cbv_cbn t)) (lam (app (app (var 1) (var 0)) (ren S (ren S u)))))).
-    have [n2 Hn2] := IH2 (lam (app (app (ren S (Psi s)) (var 0)) (ren S u))).
-    move: (s) Hs Hn1 Hn2 => [].
-    + by move=> > /not_closed_var.
-    + move=> s1 s2 _. move: (app s1 s2) => s' Hn1 Hn2.
-      exists (S n1). rewrite -Hn1.
-      rewrite (stepsf_plus 1 (S n1)) /=.
-      by rewrite !simpl_term /= !ren_as_subst_term.
-    + move=> s' _ Hn1 Hn2.
-      exists (1 + (n1 + (1 + S n2))). rewrite -Hn2.
-      rewrite (stepsf_plus 1 (S n1 + (1 + S n2))) /=.
-      rewrite !simpl_term /=.
-      rewrite (stepsf_plus (S n1) (1 + S n2)) /=.
-      move E': (t' in (stepsf (S n1) t')) => t'.
-      have -> : t' = 
-        (app (cbv_cbn (lam s')) (lam (app (ren S (cbv_cbn t)) (lam (app (app (var 1) (var 0)) (ren S (ren S u))))))).
-      { rewrite -E' /= !simpl_term /= !ren_as_subst_term. congr app.
-        congr lam. congr app. congr lam. apply: ext_subst_term. by case. }
-      rewrite Hn1 /= (stepsf_plus 1 (S n2)) /=. congr stepsf.
-      by rewrite !simpl_term !ren_as_subst_term.
-  - move=> s IH u ?. exists 0.
-    rewrite /stepsf /= !simpl_term /=. congr Some. congr app. congr lam.
-    rewrite -[RHS]subst_var_term. apply: ext_subst_term. by case.
-Qed.
-*)
-
 (* transforms a goal (A -> B) -> C into goals A and B -> C *)
 Lemma unnest : forall (A B C : Type), A -> (B -> C) -> (A -> B) -> C.
 Proof. auto. Qed.
@@ -333,23 +286,6 @@ Proof.
   rewrite !simpl_term /= cbv_cbn_subst. { by case. }
   congr clos_trans. congr app. apply: ext_subst_term. by case.
 Qed.
-
-(*
-Lemma redex_colon' s t u : 
-  exists n, stepsf (S n) (app (app (lam (cbv_cbn s)) (lam (cbv_cbn t))) u) =
-    Some (colon' (subst (scons (lam t) var) s) u).
-Proof.
-  have [n Hn] := stepsf_to_colon' (subst (scons (lam t) var) s) u.
-  exists (S n).
-  rewrite (stepsf_plus 1 (S n)) -Hn /=.
-  rewrite cbv_cbn_subst /=. { by case. }
-  congr stepsf. congr app.
-  apply: ext_subst_term. by case.
-Qed.
-*)
-
-Lemma bound_step k s s' : bound k s -> step s s' -> bound k s'.
-Proof. Admitted.
 
 Lemma simulate_cbv_step s s' : cbv_step s s' -> closed s ->
   forall x, clos_trans step (colon s x) (colon s' x).
@@ -378,6 +314,7 @@ Qed.
 Lemma clos_t_rt s t : clos_trans step s t -> clos_refl_trans step s t.
 Proof. elim; eauto using @clos_refl_trans. Qed.
 
+(* cbv simulation lemma for closed terms *)
 Lemma main_forward s t : L.eval s t -> closed s ->
   forall x, clos_refl_trans step (colon s x) (colon t x).
 Proof.
@@ -389,300 +326,81 @@ Proof.
   - move=> *. apply: rt_trans; by eauto using cbv_steps_closed.
 Qed.
 
-(* cbv simulation lemma for closed terms *)
-Lemma main_forward s t : L.eval s t -> closed s ->
-  forall x, exists n, stepsf n (colon' s x) = Some (colon' t x).
-Proof.
-  elim. { move=> ???. by exists 0. }
-  move=> {}s u {}t t' v Hsu IH1 Htt' IH2 Hv IH3 /closed_app [Hs Ht].
-  move=> /(_ Hs) in IH1. move=> /(_ Ht) in IH2.
-  have Ht' : closed t' by (apply: closed_eval; eassumption).
-  have Hu : bound 1 u.
-  { by have /closed_dcl /boundE := closed_eval Hsu Hs. } 
-  have /IH3 {}IH3 : closed (L.subst u 0 t').
-  { apply /closed_dcl. apply: closed_subst; [done|by apply /closed_dcl]. }
-  move=> x.
-  move: IH3.
-  have -> : L.subst u 0 t' = subst (scons t' var) u.
-  { rewrite L_subst_subst; first done.
-    apply: (bound_ext_subst_term Hu).
-    move=> [|n]; [done|lia]. }
-  move: Htt' {Hv} IH2 Ht' => /eval_iff [_] [] t'' -> IH2 Ht'' IH3.
-  pose x1 := lam (app (ren S (cbv_cbn t)) (lam (app (app (var 1) (var 0)) (ren S (ren S x))))).
-  pose x2 := lam (app (app (lam (cbv_cbn u)) (var 0)) (ren S x)).
-  have -> : colon' (app s t) x = colon' s x1 by done.
-  have [n1 Hn1] := IH1 x1.
-  have H'n1 : stepsf 1 (colon' (lam u) x1) = Some (app (cbv_cbn t) x2).
-  { rewrite /stepsf /= /x2. congr Some. rewrite !simpl_term !ren_as_subst_term /=.
-    congr app. congr lam. congr app. congr app. congr lam.
-    move: Hu => /bound_cbv_cbn /bound_ext_subst_term.
-    rewrite -[RHS]subst_var_term. apply.
-    move=> [|?] /=; [done|lia]. }
-  have [n2 Hn2] := stepsf_to_colon' t x2.
-  have [n3 Hn3] := IH2 x2.
-  have H'n3 : stepsf 1 (colon' (lam t'') x2) = Some (app (app (lam (cbv_cbn u)) (lam (cbv_cbn t''))) x).
-  { rewrite /stepsf /= /x2. congr Some. rewrite !simpl_term /=.
-    congr app. congr app. congr lam.
-    move: Hu => /bound_cbv_cbn /bound_ext_subst_term.
-    rewrite -[RHS]subst_var_term. apply.
-    move=> [|?] /=; [done|lia]. }
-  have [n4 Hn4] := redex_colon' u t'' x.
-  have [n5 Hn5] := IH3 x.
-  exists (n1 + (1 + (S n2 + (n3 + (1 + (S n4 + n5)))))).
-  rewrite stepsf_plus Hn1 /=.
-  rewrite (stepsf_plus 1 (S n2 + (n3 + (1 + (S n4 + n5))))) H'n1 /=.
-  rewrite (stepsf_plus (S n2) (n3 + (1 + (S n4 + n5)))) Hn2 /=.
-  rewrite (stepsf_plus n3 (1 + (S n4 + n5))) Hn3 /=.
-  rewrite (stepsf_plus 1 (S n4 + n5)) H'n3 /=.
-  by rewrite (stepsf_plus (S n4) n5) Hn4 /=.
-Qed.
-
 Print Assumptions main_forward.
 
-(* BACKWARD DIRECTION using leftmost outermost L step *)
-
-
-
-(**
-(* OBSOLETE  *)
-
-Lemma colon'_top_level_redex s t u : clos_trans step (colon' (app (lam s) (lam t)) u) (colon' (subst (scons (lam t) var) s) u).
+Lemma colon_progress s t x : step (colon s x) t -> exists s', s = lam s' \/ cbv_step s s'.
 Proof.
-  move=> /=.
-  apply /clos_trans_t1n_iff. apply: t1n_trans. { by apply: stepLam. }
-  rewrite /=. apply: t1n_trans. { by apply: stepLam. }
-  rewrite /=. apply: t1n_trans. { by apply: stepLam. }
-  rewrite /=. apply: t1n_trans. { apply: stepApp. by apply: stepLam. }
-  apply /clos_trans_t1n_iff.
-  have := asd0 ((subst (scons (lam t) var) s)) u.
-  congr clos_trans. rewrite cbv_cbn_subst. { by case. }
-  rewrite !simpl_term. congr app; [|by rewrite -[LHS]subst_var_term].
-  apply: ext_subst_term.
-  case; last done.
-  congr lam.
-  rewrite -[LHS]subst_var_term.
-  apply: ext_subst_term. by case.
+  elim: s x t.
+  - by move=> > /stepE.
+  - move=> [n1|s1 s2|s1] IH1 s3 IH2 x t /=.
+    + by move=> /stepE.
+    + move=> /IH1 [s'] [|?]; first done.
+      eexists. right. apply: cbv_step_appL. by eassumption.
+    + move=> /IH2 [s'] [|].
+      * move=> ->. eexists. right. by apply: cbv_step_lam.
+      * move=> ?. eexists. right. apply: cbv_step_appR. by eassumption.
+  - move=> *. eexists. by left.
 Qed.
 
-(*
-Lemma lemma_6_1 M N :
-  subst (scons (Psi (lam N)) var) (cbv_cbn M) = cbv_cbn (subst (scons (lam N) var) M).
+Definition rcomp {X Y Z} (R : X -> Y -> Prop) (S : Y -> Z -> Prop) : X -> Z -> Prop :=
+  fun x z => exists y, R x y /\ S y z.
+
+Definition pow X R n : X -> X -> Prop := Nat.iter n (rcomp R) eq.
+
+Lemma clos_refl_trans_pow s t : 
+  clos_refl_trans step s t -> exists k, Nat.iter k (rcomp step) eq s t.
 Proof.
-  (* maybe point subst is better ?  *)
-Admitted.
-*)
-(*
-  elim: M k N.
-  - move=> /= n k N. case: (Nat.eqb n k).
-    + done.
-    + done.
-  - move=> s IH1 t IH2 k N /=.
-    rewrite !subst_ren.
-    by rewrite IH1 IH2.
-  - move=> s IH k N /=.
-    rewrite -IH.
-    congr lam. congr app. congr lam.
-    cbn.
-Admitted.
-*)
-
-Definition on_app {X : Type} (s : term) (x : X) (g : term -> term -> X) : X :=
-  match s with
-  | app s t => g s t
-  | _ => x
-  end.
-
-Definition is_app (s: term) : bool :=
-  if s is app _ _ then true else false.
-
-Fixpoint colon (M : term) (u : term) : term :=
-  match M with
-  | var _ => app u (Psi M)
-  | lam _ => app u (Psi M)
-  | app s t =>
-      if is_app s then
-        colon s (lam (app (ren S (cbv_cbn t)) (lam (app (app (var 1) (var 0)) (ren S (ren S u))))))
-      else
-        if is_app t then
-          colon t (lam (app (app (ren S (Psi s)) (var 0)) (ren S u)))
-        else
-          app (app (Psi s) (Psi t)) u
-  end.
-
-(* plotkins M : K *)
-(*
-Fixpoint colon (M : term) (u : term) : term :=
-  on_app M (
-    app u (Psi M)
-  ) (
-    fun s t =>
-      on_app s (
-        on_app t (
-          app (app (Psi s) (Psi t)) u
-        ) (
-          fun t1 t2 => colon t (lam (app (app (ren S (Psi s)) (var 0)) (ren S u)))
-        )
-      ) (
-        fun s1 s2 => colon s (lam (app (ren S (cbv_cbn t)) (lam (app (app (var 1) (var 0)) (ren S (ren S u))))))
-      )
-  ).
-
-Arguments colon : simpl never.
-*)
-
-Lemma colon_var_app n t1 t2 u : colon (app (var n) (app t1 t2)) u = colon (app t1 t2) (lam (app (app (ren S (Psi (var n))) (var 0)) (ren S u))).
-Proof. done. Qed.
-  (*
-Lemma ren_const_ren m xi t : ren (fun=> m) (ren xi t) = ren (fun=> m) t.
-Proof. by rewrite ren_ren_term. Qed.
-*)
-
-(* transforms a goal (A -> B) -> C into goals A and B -> C *)
-Lemma unnest : forall (A B C : Type), A -> (B -> C) -> (A -> B) -> C.
-Proof. auto. Qed.
-
-Arguments cbv_cbn: simpl never.
-
-
-(* drop closedness? 
-Lemma lemma_6_2 s u : halt_cbn [] [] (colon s u) -> halt_cbn [] [] (app (cbv_cbn s) u).
-Proof.
-  elim: s u.
-  - move=> n u /=.
-    move=> /halt_cbnE H'.
-    do ? constructor.
-    apply: (halt_cbn_flatten_iff H'); by constructor.
-  - move=> [n1|s1 s2|s1] IH1 [n2|t1 t2|t1] IH2 u.
-    + move=> /= /halt_cbnE /halt_cbnE H'.
-      do ? constructor.
-      apply: (halt_cbn_flatten_iff H'); last done.
-      constructor; [|constructor;[|done]] => /=.
-      all: by rewrite ren_ren_term.
-    + move Et: (app t1 t2) IH2 => t IH2 /= H'.
-      rewrite /cbv_cbn -/cbv_cbn /= /funcomp /=.
-      do 8 constructor.
-      do 2 apply: halt_cbn_ren_S.
-      have := IH2 (lam (app (app (Psi (var (S n1))) (var 0)) (ren S u))).
-      apply: unnest.
-      { move: H'. by rewrite -Et. }
-      move=> /halt_cbnE {}H'.
-      apply: (halt_cbn_flatten_iff H'); last done.
-      constructor; last done.
-      move=> /=. rewrite /funcomp /many_subst /=.
-      congr lam. rewrite !simpl_term. congr app.
-      apply: ext_subst_term. by case.
-      + admit.
-      + admit.
-      + admit.
-      + admit.
-      + admit.
-      + admit.
-      + admit.
-  - move=> s IH u /=.
-    rewrite /colon -/colon /cbv_cbn -/cbv_cbn /=.
-    move=> /halt_cbnE H'.
-    do ? constructor.
-    apply: (halt_cbn_flatten_iff H'); last done.
-    constructor; last done.
-    move=> /=. rewrite !simpl_term.
-    congr lam. apply: ext_subst_term. by case.
-Admitted.
-*)
-
-
-
-Lemma closed_cbv_cbn t : closed t -> closed (cbv_cbn t).
-Proof. Admitted.
-
-Lemma closed_lam_cbv_cbn t : closed (lam t) -> closed (lam (cbv_cbn t)).
-Proof. Admitted.
-
-Lemma lemma_6_3 {s t u} : closed s -> s ≻ t -> 
-  halt_cbn [] [] (colon t u) ->
-  halt_cbn [] [] (colon s u).
-Proof.
-  move=> Hs Hst.
-  elim: Hst u Hs; clear s t.
-  - move=> s t u /= /closed_app [Hs Ht].
-    move=> H'. rewrite /colon /=.
-    do 3 constructor.
-    suff : halt_cbn [closure [] u] [] (L.subst (cbv_cbn s) 0 (lam (cbv_cbn t))).
-    { move=> {}H'. apply: (halt_cbn_flatten_iff H'); first by constructor.
-      move: Ht => /closed_lam_cbv_cbn. move: (cbv_cbn s) (lam (cbv_cbn t)) => s' t'.
-      admit. (* doable *) }
-    rewrite -lemma_6_1; first done.
-    admit.
-    (* by move: H' => /lemma_6_2 /halt_cbnE. *)
-  - move=> s t t' ? IH u /closed_app [Hs Ht].
-    move=> H'. rewrite /colon -/colon /=.
-Admitted.
-
-Arguments clos_trans {A} R.
-
-(* induction on size of s *)
-Lemma lemma_6_3' {s t u} : closed s -> s ≻ t ->
-  clos_trans step (colon s u) (colon t u).
-Proof.
-  elim /(measure_rect term_size) : s t u.
-  move=> s + t ++ Hst. case: Hst; clear s t.
-  - move=> s1 s2 IH u /closed_app [Hs1 Hs2].
-    rewrite L_subst_subst; first done.
-
-    admit. (* substitution case *)
-    (*
-    move=> H'. rewrite /colon /=.
-    do 3 constructor.
-    suff : halt_cbn [closure [] u] [] (L.subst (cbv_cbn s) 0 (lam (cbv_cbn t))).
-    { move=> {}H'. apply: (halt_cbn_flatten_iff H'); first by constructor.
-      move: Ht => /closed_lam_cbv_cbn. move: (cbv_cbn s) (lam (cbv_cbn t)) => s' t'.
-      admit. (* doable *) }
-    rewrite -lemma_6_1; first done.
-    by move: H' => /lemma_6_2 /halt_cbnE.*)
-  - move=> s t t' ? IH u /closed_app [Hs Ht].
-    rewrite /colon -/colon /=.
-
-
-Admitted.
-
-(* forward simulation *)
-Lemma main_forward s t : closed s -> L.eval s t -> 
-  halt_cbn [] [] (colon s (lam (var 0))).
-Proof.
-  move=> Hs /eval_iff [] Hst Ht.
-  have H't := closed_star Hst Hs.
-  elim: Hst Ht Hs.
-  { move=> ? [? ->] ?. by do ? constructor. }
-  move=> s1 s2 s3 Hs1s2 Hs2s3 IH Hs3 Hs1.
-  apply: lemma_6_3; [done|eassumption|].
-  apply: IH; [done|].
-  by apply: closed_step; eassumption.
+  move=> /clos_rt_rt1n. elim.
+  - move=> ?. by exists 0.
+  - move=> > ? ? [k Hk]. exists (S k). eexists. by split; [eassumption|].
 Qed.
 
-Lemma not_halt_cbn_colon_var n : not (halt_cbn [] [] (colon (var n) (lam (var 0)))).
+Lemma clos_trans_pow s t : 
+  clos_trans step s t -> exists k, Nat.iter (S k) (rcomp step) eq s t.
 Proof.
-  move=> /halt_cbnE /halt_cbnE /halt_cbnE /halt_cbnE /=.
-  by case: n.
+  move=> /(clos_trans_t1n term). elim.
+  - move=> *. exists 0. eexists. by split; [eassumption|].
+  - move=> > ? ? [k Hk]. exists (S k). eexists. by split; [eassumption|].
 Qed.
 
-
-
-
-Lemma main_backward s :
-  closed s -> clos_refl_trans step (colon s u) (colon (lam t) u) -> 
-  
-  halt_cbn [] [] (colon s (lam (var 0))) -> exists t, L.eval s t.
+Lemma iter_step_sub k k' s s' t :
+  Nat.iter (S k) (rcomp step) eq s (lam t) ->
+  Nat.iter (S k') (rcomp step) eq s s' -> 
+  Nat.iter (k - k') (rcomp step) eq s' (lam t).
 Proof.
+  elim: k k' s s'.
+  - rewrite /rcomp /=. move=> k' s s' [u] [/step_fun Hsu ?]. subst u.
+    move=> [u] [/Hsu ?]. subst u.
+    case: k'; first done.
+    by move=> k /= [?] [/stepE].
+  - move=> k IH [|k'] s s' /= [u] [/step_fun Hsu] Hu [u'] [/Hsu ?].
+    { move=> ?. by subst. }
+    subst. move=> /IH. by apply.
+Qed.
 
-Lemma main_backward s :
-  closed s -> halt_cbn [] [] (colon s (lam (var 0))) -> exists t, L.eval s t.
+Lemma not_colon_lam s x t : colon s x = lam t -> False.
 Proof.
-  have := Seval.stepf_spec s.
-  case: (Seval.stepf s) => [|s' ?].
-  - admit.
-  - move=> /(_ s') /iffLR /(_ (or_introl erefl)).
-    move=> /lemma_6_3 /[apply]. /[apply].
-    have /[apply] := lemma_6_3 Hs Hss'.
-  Print or.
+  elim: s x; [done| |done].
+  move=> [?|??|?]; by eauto with nocore.
+Qed.
 
-Check Seval.stepf.
-*)
+Lemma main_backward s t :
+  clos_refl_trans step (colon s (lam (var 0))) (lam t) -> closed s ->
+  exists t', L.eval s (lam t').
+Proof.
+  move=> /clos_refl_trans_pow [k] H Hs.
+  suff : exists t', star L_facts.step s (lam t').
+  { move=> [t' ?]. exists t'. by apply /eval_iff. }
+  elim /(measure_rect id): k s t H Hs. rewrite /id.
+  move=> [|k] IH s t. { by move=> /not_colon_lam. }
+  move=> /[dup] /= - [s'] [/colon_progress] [s''] [].
+  { move=> -> *. exists s''. by apply: starR. }
+  move=> /[dup] /[dup] /cbv_step_L_step H0s /simulate_cbv_step H1s /cbv_step_closed H2s _.
+  move=> HSk /[dup] /H0s {}H0s /[dup] /H1s /(_ (lam (var 0))) {}H1s /H2s {}H2s.
+  move: H1s => /clos_trans_pow [k'].
+  move: HSk => /iter_step_sub /[apply] /IH.
+  move=> /(_ ltac:(lia) H2s) [t'] ?. exists t'.
+  by apply: starC; eassumption.
+Qed.
+
+Print Assumptions main_backward.
