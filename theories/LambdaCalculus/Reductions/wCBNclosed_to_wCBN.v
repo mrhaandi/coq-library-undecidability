@@ -9,6 +9,8 @@ From Undecidability.LambdaCalculus Require Import wCBN Util.term_facts Util.wCBN
 Require Undecidability.L.Util.L_facts.
 Require Import Undecidability.Synthetic.Definitions.
 
+Set Default Goal Selector "!".
+
 Theorem reduction : wCBNclosed ⪯ wCBN.
 Proof.
   exists (@proj1_sig L.term _).

@@ -14,6 +14,8 @@ Import wCBN (subst, step).
 Require Import Relations.
 Require Import ssreflect.
 
+Set Default Goal Selector "!".
+
 Module Argument.
 
 #[local] Arguments clos_refl_trans {A}.

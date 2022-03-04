@@ -7,6 +7,8 @@ From Undecidability Require Import wCBN.
 Require Import PeanoNat Lia.
 Require Import ssreflect ssrbool ssrfun.
 
+Set Default Goal Selector "!".
+
 Lemma ext_ren_term xi1 xi2 t : (forall n, xi1 n = xi2 n) -> ren xi1 t = ren xi2 t.
 Proof.
   elim: t xi1 xi2.

@@ -8,6 +8,8 @@ Import wCBN (step, subst).
 
 Require Import ssreflect ssrbool ssrfun.
 
+Set Default Goal Selector "!".
+
 #[local] Unset Implicit Arguments.
 
 Lemma halt_cbnE ts ctx u : halt_cbn ts ctx u ->
@@ -85,11 +87,9 @@ Lemma halt_cbn_flatten_iff {ts1 ts2 ctx1 ctx2 s1 s2} :
 Proof.
   move=> H. elim: H ts2 ctx2 s2; clear ts1 ctx1 s1.
   - move=> ts ctx t ctx' ? IH ts2 ctx2 s2.
-    rewrite flatten_var_0.
-    by move=> /IH /[apply].
+    rewrite flatten_var_0. by move=> /IH /[apply].
   - move=> ts1 ctx1 n t ? IH ts2 ctx2 s2.
-    rewrite flatten_var_S.
-    by move=> /IH /[apply].
+    rewrite flatten_var_S. by move=> /IH /[apply].
   - move=> ts1 ctx1 s t ? IH ts2 ctx2 s2.
     elim /(measure_rect context_size): ctx2 s2.
     move=> ctx2 IH' []. 
@@ -103,8 +103,7 @@ Proof.
         move=> /= ??. apply: halt_var_S. apply: IH' => //=.
         rewrite /context_size /=. lia.
     + move=> ??? /= [] /IH {}IH ?.
-      apply: halt_app. apply: IH => //=.
-      by congr cons.
+      apply: halt_app. apply: IH => //=. by congr cons.
     + done.
   - move=> t1 ts1 ctx1 s1 ? IH [|t2 ts2] ctx2 s2; first done.
     move=> [Ht1t2 ?].

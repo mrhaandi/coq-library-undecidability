@@ -5,6 +5,8 @@ Import wCBN (subst, step, stepApp, stepLam).
 Require Import Relations.
 Require Import ssreflect ssrbool ssrfun.
 
+Set Default Goal Selector "!".
+
 Lemma stepE s t :
   step s t ->
   match s with
