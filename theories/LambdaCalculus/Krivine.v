@@ -1,6 +1,6 @@
 (* 
   Problem(s):
-    Krivine machine halting (KM_HALT)
+    Krivine machine halting (KrivineM_HALT)
 
   Literature:
     [1] Krivine, Jean-Louis.
@@ -36,5 +36,5 @@ Inductive halt_cbn : list eterm -> list eterm -> term -> Prop :=
       halt_cbn nil ctx (lam s).
 
 (* Krivine machine halting *)
-Definition KM_HALT : term -> Prop :=
+Definition KrivineM_HALT : term -> Prop :=
   fun t => halt_cbn nil nil t.

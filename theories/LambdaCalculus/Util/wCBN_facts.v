@@ -41,6 +41,12 @@ Proof.
     constructor; by auto with nocore.
 Qed.
 
+Lemma stepLam' s t t' : t' = (subst (scons t var) s) -> step (app (lam s) t) t'.
+Proof. move=> ->. by apply: stepLam. Qed.
+
+Lemma step_closed s t : step s t -> closed s -> closed t.
+Proof. by move=> /step_bound + /closed_dcl => /[apply] /closed_dcl. Qed.
+
 Lemma steps_bound k {s t} : clos_refl_trans term step s t -> bound k s -> bound k t.
 Proof. elim; by eauto using step_bound. Qed.
 
