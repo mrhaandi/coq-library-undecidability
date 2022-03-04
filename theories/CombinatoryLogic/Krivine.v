@@ -78,7 +78,7 @@ Fixpoint eclosed (u : eterm) : Prop :=
 Lemma measure_rect {X : Type} (f : X -> nat) (P : X -> Type) : 
 (forall x, (forall y, f y < f x -> P y) -> P x) -> forall (x : X), P x.
 Proof.
-exact: (well_founded_induction_type (Wf_nat.well_founded_lt_compat X f _ (fun _ _ => id)) P).
+  exact: (well_founded_induction_type (Wf_nat.well_founded_lt_compat X f _ (fun _ _ => id)) P).
 Qed.
 
 (* function composition *)
@@ -114,83 +114,6 @@ Arguments many_subst ts !s /.
 Fixpoint flatten (u : eterm) : term :=
   let '(closure ctx t) := u in ren (fun=> 0) (many_subst (map flatten ctx) t).
 
-Lemma ext_ren_term xi1 xi2 t : (forall n, xi1 n = xi2 n) -> ren xi1 t = ren xi2 t.
-Proof.
-  elim: t xi1 xi2.
-  - move=> > /= ?. by congr var.
-  - move=> ? IH1 ? IH2 ?? Hxi /=. congr app; [by apply: IH1 | by apply: IH2].
-  - move=> ? IH > Hxi /=. congr lam. apply: IH.
-    case; first done. move=> ?. by congr S.
-Qed.
-
-Lemma ext_subst_term sigma1 sigma2 t : (forall n, sigma1 n = sigma2 n) ->
-  subst sigma1 t = subst sigma2 t.
-Proof.
-  elim: t sigma1 sigma2.
-  - by move=> > /= ?.
-  - move=> ? IH1 ? IH2 ?? Hsigma /=. congr app; [by apply: IH1 | by apply: IH2].
-  - move=> ? IH > Hsigma /=. congr lam. apply: IH.
-    case; first done. move=> ?. by rewrite /= /funcomp Hsigma.
-Qed.
-
-Lemma ren_ren_term xi1 xi2 t : ren xi2 (ren xi1 t) = ren (funcomp xi2 xi1) t.
-Proof.
-  elim: t xi1 xi2 => /=.
-  - done.
-  - move=> ? IH1 ? IH2 ??. by rewrite IH1 IH2.
-  - move=> ? IH ??. rewrite IH.
-    congr lam. apply: ext_ren_term. by case.
-Qed.
-
-Lemma ren_as_subst_term xi t : ren xi t = subst (funcomp var xi) t.
-Proof.
-  elim: t xi => /=.
-  - done.
-  - move=> ? IH1 ? IH2 ?. by rewrite IH1 IH2.
-  - move=> ? IH ?. rewrite IH.
-    congr lam. apply: ext_subst_term. by case.
-Qed.
-
-Lemma ren_subst_term xi sigma t : ren xi (subst sigma t) = subst (funcomp (ren xi) sigma) t.
-Proof.
-  elim: t xi sigma => /=.
-  - done.
-  - move=> ? IH1 ? IH2 ??. by rewrite IH1 IH2.
-  - move=> ? IH ??. rewrite IH.
-    congr lam. apply: ext_subst_term.
-    case; first done. move=> ?. by rewrite /funcomp /= !ren_ren_term.
-Qed.
-
-Lemma subst_ren_term xi sigma t : subst sigma (ren xi t) = subst (funcomp sigma xi) t.
-Proof.
-  elim: t xi sigma => /=.
-  - done.
-  - move=> ? IH1 ? IH2 ??. by rewrite IH1 IH2.
-  - move=> ? IH ??. rewrite IH.
-    congr lam. apply: ext_subst_term. by case.
-Qed.
-
-Lemma subst_subst_term sigma1 sigma2 t : subst sigma2 (subst sigma1 t) = subst (funcomp (subst sigma2) sigma1) t.
-Proof.
-  elim: t sigma1 sigma2 => /=.
-  - done.
-  - move=> ? IH1 ? IH2 ??. by rewrite IH1 IH2.
-  - move=> ? IH ??. rewrite IH.
-    congr lam. apply: ext_subst_term.
-    case; first done. move=> ?. rewrite /funcomp /=.
-    by rewrite !ren_subst_term !subst_ren_term.
-Qed.
-
-Lemma subst_var_term s : subst var s = s.
-Proof.
-  elim: s.
-  - done.
-  - move=> ? IH1 ? IH2 /=. by rewrite IH1 IH2.
-  - move=> ? IH /=. congr lam. rewrite -[RHS]IH.
-    apply: ext_subst_term. by case.
-Qed.
-
-Definition simpl_term := (ren_ren_term, ren_subst_term, subst_ren_term, subst_subst_term, subst_var_term).
 
 Lemma flatten_var_0 t ctx :
   flatten (closure (t :: ctx) (var 0)) = flatten t.
@@ -441,54 +364,13 @@ Proof.
   
 *)
 
-
-Lemma boundE k s : bound k s ->
-  match s with
-  | var n => k > n
-  | app s t => bound k s /\ bound k t
-  | lam s => bound (S k) s
-  end.
-Proof. by case. Qed.
-
-Lemma bound_ext_subst_term {k sigma1 sigma2 s} : bound k s -> (forall n, n < k -> sigma1 n = sigma2 n) ->
-  subst sigma1 s = subst sigma2 s.
-Proof.
-  elim: s k sigma1 sigma2.
-  - move=> > /boundE /= ?. by apply.
-  - move=> ? IH1 ? IH2 k sigma1 sigma2 /boundE + ? /=.
-    move=> [/IH1] => /(_ sigma1 sigma2) ->; first done.
-    by move=> /IH2 => /(_ sigma1 sigma2) ->.
-  - move=> ? IH k sigma1 sigma2 /boundE /IH {}IH H /=. congr lam.
-    apply: IH.
-    move=> [|n]; first done.
-    move=> /= ?. rewrite H; [lia|done].
-Qed.
-
-Lemma ren_closed {xi t} : closed t -> ren xi t = t.
-Proof.
-  move=> /closed_dcl /bound_ext_subst_term.
-  rewrite ren_as_subst_term -[RHS]subst_var_term. apply. lia.
-Qed.
-
 Lemma subst_closed {sigma t} : closed t -> subst sigma t = t.
 Proof. Admitted.
 
 Lemma many_subst_closed {ts t} : closed t -> many_subst ts t = t.
 Proof. move=> /subst_closed. by apply. Qed.
 
-Lemma L_subst_subst s k t :
-  closed t -> L.subst s k t = subst (fun n => if Nat.eqb n k then t else var n) s.
-Proof.
-  move=> Ht. elim: s k.
-  - done. 
-  - move=> ? IH1 ? IH2 ? /=. by rewrite IH1 IH2.
-  - move=> ? IH k /=. rewrite IH.
-    congr lam. apply: ext_subst_term.
-    rewrite /funcomp /=.
-    move=> [|n] /=; first done.
-    case: (Nat.eqb n k); last done.
-    by rewrite (ren_closed Ht).
-Qed.
+
 
 Lemma step_halt_cbn s t ts ctx : closed s -> step s t ->
   halt_cbn ts ctx s -> halt_cbn ts ctx t.
