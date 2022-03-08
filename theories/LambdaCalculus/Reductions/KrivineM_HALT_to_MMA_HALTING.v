@@ -1,3 +1,4 @@
+(* TODO move to MinskyMachines *)
 From Undecidability Require Import
   LambdaCalculus.Krivine MinskyMachines.MM.
 From Undecidability.Shared.Libs.DLW
@@ -16,6 +17,25 @@ Require Import ssreflect ssrbool ssrfun.
 #[local] Notation "e #> x" := (vec_pos e x).
 #[local] Notation "e [ v / x ]" := (vec_change e x v).
 
+#[local] Arguments vec_change_neq {X n v p q x}.
+#[local] Arguments vec_change_eq {X n v p q x}.
+
+Lemma vec_change_comm {X : Type} {n : nat} {v : vec X n} {p q : pos n} {x y : X} : p <> q -> 
+  vec_change (vec_change v p x) q y = vec_change (vec_change v q y) p x.
+Proof.
+  move=> Hpq.
+  apply: vec_pos_ext => r.
+  case: (pos_eq_dec p r); case: (pos_eq_dec q r).
+  - move=> ??. by subst.
+  - move=> ? <-. by rewrite (vec_change_neq (nesym Hpq)) !(vec_change_eq erefl).
+  - move=> <- ?. by rewrite (vec_change_neq (Hpq)) !(vec_change_eq erefl).
+  - move=> Hqr Hpr. by do ? rewrite ?(vec_change_neq (Hpr)) ?(vec_change_neq (Hqr)).
+Qed.
+
+Lemma vec_change_same' {X : Type} {n : nat} (v : vec X n) (p : pos n) (x : X) :
+  vec_pos v p = x -> vec_change v p x = v.
+Proof. move=> <-. by apply: vec_change_same. Qed.
+
 (* auxiliary counters *)
 Notation A := (Fin.F1 : counter).
 Notation B := (Fin.FS (Fin.F1) : counter).
@@ -24,6 +44,16 @@ Notation C := (Fin.FS (Fin.FS (Fin.F1)) : counter).
 Notation TS := (Fin.FS (Fin.FS (Fin.FS (Fin.F1))) : counter).
 Notation CTX := (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1)))) : counter).
 Notation U := (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1))))) : counter).
+
+(* simplify vec_change statements *)
+Definition vec_norm {X Y: counter} (HXY : X <> Y) := (
+  fun v n m => @vec_change_comm nat _ v X Y n m HXY,
+  fun v n m => @vec_change_idem nat _ v X n m,
+  fun v n m => @vec_change_idem nat _ v Y n m,
+  fun v n => @vec_change_neq nat _  v X Y n HXY,
+  fun v n => @vec_change_neq nat _  v Y X n (nesym HXY),
+  fun v n => @vec_change_eq nat _  v X X n erefl,
+  fun v n => @vec_change_eq nat _  v Y Y n erefl).
 
 Definition Q_step (Q : list mm_instr) (offset i : nat) (v : vec nat 6) : option mm_state :=
   match nth_error Q i with
@@ -84,7 +114,7 @@ Proof.
   - move=> v En.
     apply: Q_step_spec'. { by rewrite /= En. }
     apply: sss_compute_refl'. congr pair.
-    by rewrite [i in vec_change v X i](esym En) vec_change_same.
+    by rewrite vec_change_same'.
   - move=> n IH v En.
     apply: Q_step_spec'. { by rewrite /= En. }
     rewrite -(vec_change_idem v X n 0).
@@ -102,8 +132,7 @@ Lemma JMP_spec p v offset :
 Proof.
   apply: Q_step_spec'. { done. }
   apply: Q_step_spec'. { by rewrite /= vec_change_eq. }
-  rewrite vec_change_idem vec_change_same.
-  by apply: sss_compute_refl.
+  apply: sss_compute_refl'. by rewrite vec_change_idem vec_change_same.
 Qed.
 
 Arguments ZERO : simpl never.
@@ -115,13 +144,20 @@ Definition MOVE (X Y: counter) (offset: nat) : list mm_instr :=
 
 Definition MOVE_length := JMP_length+2.
 
-Arguments vec_change_neq {X n v p q x}.
-Arguments vec_change_eq {X n v p q x}.
-
 Lemma asd (P : counter -> Prop) : 
   P A -> P B -> P C -> P TS -> P CTX -> P U -> forall (X : counter), P X.
 Proof.
 Admitted.
+
+(* TODO use universaly 
+Definition simpl_vec_change {X Y : counter} (HXY : X <> Y) :=
+  (fun v n => @vec_change_neq nat _  v X Y n HXY,
+   fun v n => @vec_change_neq nat _  v Y X n (nesym HXY),
+   fun v n => @vec_change_eq nat _  v X X n erefl,
+   fun v n => @vec_change_eq nat _  v Y Y n erefl).
+*)
+
+
 
 Lemma MOVE_spec X Y v offset :
   let x := vec_pos v X in
@@ -140,19 +176,14 @@ Proof.
   - move=> v En w <-.
     apply: Q_step_spec'. { by rewrite /= En. }
     apply: sss_compute_refl'. congr pair.
-    rewrite Nat.add_0_r. rewrite vec_change_same.
-    by rewrite [i in vec_change v X i](esym En) vec_change_same.
+    rewrite (vec_change_same' _ Y); [lia|].
+    by rewrite vec_change_same'.
   - move=> n IH v En w <-.
     apply: Q_step_spec'. { by rewrite /= En. }
     apply: Q_step_spec'. { done. }
     apply: IH.
     + by rewrite (vec_change_neq (nesym HXY)) vec_change_eq.
-    + apply: vec_pos_ext => Z.
-      case: (pos_eq_dec X Z); case: (pos_eq_dec Y Z).
-      * move=> ??. by subst.
-      * move=> ? <-. by rewrite !(vec_change_eq erefl).
-      * move=> <- ?. rewrite !(vec_change_neq (HXY)) !(vec_change_eq erefl). lia.
-      * move=> HYZ HXZ. by rewrite !(vec_change_neq (HXZ)) !(vec_change_neq (HYZ)) !(vec_change_neq (HXZ)).
+    + rewrite !(vec_norm HXY). congr vec_change. congr vec_change. lia.
 Qed.
 
 (* X := X+X *)
@@ -193,31 +224,22 @@ Proof.
     - move=> v'' En x w ->.
       rewrite !Nat.add_assoc. apply: Q_step_spec'. { by rewrite /= En. }
       apply: sss_compute_refl'. congr pair.
-      by rewrite [i in vec_change v'' X i](esym En) !vec_change_same.
+      rewrite (vec_change_same' _ X); first done.
+      by rewrite vec_change_same'.
     - move=> n IH v'' En x w ->.
       rewrite !Nat.add_assoc. apply: Q_step_spec'. { by rewrite /= En. }
       rewrite !Nat.add_assoc. apply: Q_step_spec'. { done. }
       apply: Q_step_spec'. { done. }
       apply: IH.
       + by rewrite !(vec_change_neq HX) vec_change_eq.
-      + apply: vec_pos_ext => Z.
-        case: (pos_eq_dec X Z); case: (pos_eq_dec A Z).
-        * move=> ??. by subst.
-        * move=> ? <-. by do ? rewrite ?(vec_change_eq erefl) ?(vec_change_neq HX).
-        * move=> <- ?. do ? rewrite ?(vec_change_eq erefl) ?(vec_change_neq (nesym HX)). lia.
-        * move=> HAZ HXZ. by do ? rewrite ?(vec_change_neq (HXZ)) ?(vec_change_neq (HAZ)). }
+      + rewrite !(vec_norm HX). congr vec_change. lia. }
   move=> /(_ _ erefl) /sss_compute_trans. apply.
   apply: sss_compute_trans.
   { apply: (subcode_sss_compute (P := (_, MOVE _ _ _))).
     { rewrite /= /DOUBLE. do 2 eexists. by do 2 rewrite [LHS]app_assoc. }
       rewrite ?H'. by apply: MOVE_spec. }
   apply: sss_compute_refl'. congr pair.
-  rewrite -Ev'. apply: vec_pos_ext => Z.
-  case: (pos_eq_dec X Z); case: (pos_eq_dec A Z).
-  - move=> ??. by subst.
-  - move=> ? <-. do ? rewrite ?(vec_change_eq erefl) ?(vec_change_neq HX). lia.
-  - move=> <- ?. by do ? rewrite ?(vec_change_eq erefl) ?(vec_change_neq (nesym HX)).
-  - move=> HAZ HXZ. by do ? rewrite ?(vec_change_neq (HXZ)) ?(vec_change_neq (HAZ)).
+  rewrite -Ev' !(vec_norm HX). congr vec_change. congr vec_change. lia.
 Qed.
 
 (* X := (X+X+1)*(2^Y) *)
@@ -241,12 +263,7 @@ Proof.
     by move=> + _ H => /H.
 Qed.
 
-(* TODO use universaly *)
-Definition simpl_vec_change {X Y : counter} (HXY : X <> Y) :=
-  (fun v n => @vec_change_neq nat _  v X Y n HXY,
-   fun v n => @vec_change_neq nat _  v Y X n (nesym HXY),
-   fun v n => @vec_change_eq nat _  v X X n erefl,
-   fun v n => @vec_change_eq nat _  v Y Y n erefl).
+
 
 Lemma PACK_spec X Y v offset :
   let x := vec_pos v X in
@@ -279,15 +296,8 @@ Proof.
     - move=> v'' En HAv'' w ->.
       rewrite !Nat.add_assoc. apply: Q_step_spec'. { by rewrite /= En. }
       apply: sss_compute_refl'. congr pair.
-      have -> : (vec_pos v'' X) * 2 ^ 0 = vec_pos v'' X by simpl; lia.
-      apply: vec_pos_ext => Z. case: (pos_eq_dec X Z).
-      { move=> <-. by do ? rewrite ?(simpl_vec_change HX). }
-      move=> HXZ. case: (pos_eq_dec Y Z).
-      { move=> <-. by do ? rewrite ?(simpl_vec_change HY) ?(simpl_vec_change HXY). }
-      move=> HYZ. case: (pos_eq_dec A Z).
-      { move=> <-. by do ? rewrite ?(simpl_vec_change HX) ?(simpl_vec_change HY). }
-      move=> HAZ.
-      by do ? rewrite ?(simpl_vec_change HX) ?(simpl_vec_change HY) ?(simpl_vec_change HXY) ?(simpl_vec_change HAZ) ?(simpl_vec_change HXZ) ?(simpl_vec_change HYZ).
+      rewrite (vec_change_same' _ A) // (vec_change_same' _ Y) // vec_change_same' //=.
+      lia.
     - move=> n IH v'' En HAv'' w ->.
       rewrite !Nat.add_assoc. apply: Q_step_spec'. { by rewrite /= En. }
       apply: sss_compute_trans.
@@ -297,26 +307,104 @@ Proof.
       apply: IH.
       + by rewrite !(vec_change_neq HY) !(vec_change_neq HXY) vec_change_eq.
       + by rewrite vec_change_eq.
-      + apply: vec_pos_ext => Z.
-        case: (pos_eq_dec X Z); case: (pos_eq_dec Y Z).
-        * move=> ??. by subst.
-        * move=> ? <-. do ? rewrite ?(vec_change_eq erefl) ?(vec_change_neq HX) ?(vec_change_neq (nesym HXY)) /=.
-          lia.
-        * move=> <- ?. by do ? rewrite ?(vec_change_eq erefl) ?(vec_change_neq HXY) ?(vec_change_neq (nesym HXY)).
-        * move=> HYZ HXZ. do ? rewrite ?(vec_change_neq (HXZ)) ?(vec_change_neq (HYZ)) ?(vec_change_neq (nesym HXY)).
-          case: (pos_eq_dec A Z).
-          ** move=> <-. by rewrite ?(vec_change_eq erefl).
-          ** move=> HAZ. by rewrite ?(vec_change_neq (HAZ)) ?(vec_change_neq (HXZ)) ?(vec_change_neq (HYZ)). }
+      + rewrite !(vec_norm HY) !(vec_norm HX) !(vec_norm HXY) /=.
+        congr vec_change. congr vec_change. lia. }
   move=> /(_ _ erefl) /sss_compute_trans. apply.
   apply: sss_compute_refl'. congr pair.
-  rewrite -Ev'. apply: vec_pos_ext => Z.
-  case: (pos_eq_dec X Z).
-  { move=> <-. do ? rewrite ?(simpl_vec_change HX) ?(simpl_vec_change HY) ?(simpl_vec_change HXY). lia. }
-  move=> HXZ. case: (pos_eq_dec Y Z).
-  { move=> <-. by do ? rewrite ?(simpl_vec_change HY) ?(simpl_vec_change HXY). }
-  move=> HYZ. case: (pos_eq_dec A Z).
-  { move=> <-. by do ? rewrite ?(simpl_vec_change HX) ?(simpl_vec_change HY) ?(simpl_vec_change HXY). }
-  move=> HAZ.
-  by do ? rewrite ?(simpl_vec_change HX) ?(simpl_vec_change HY) ?(simpl_vec_change HXY) ?(simpl_vec_change HAZ) ?(simpl_vec_change HXZ) ?(simpl_vec_change HYZ).
+  rewrite -Ev' /=. do ? rewrite ?(vec_norm HY) ?(vec_norm HX) ?(vec_norm HXY).
+  congr vec_change. congr vec_change. lia.
 Qed.
 
+(* X := X/2 + A if X even goto p else goto q *)
+Definition HALF (X: counter) (p q: nat) (offset: nat) : list mm_instr :=
+  let i := offset in JMP (JMP_length + 1 + i) i ++
+  let i := JMP_length + i in let j := i in [INC A; DEC X (2+JMP_length+MOVE_length+i)] ++
+  let i := 2 + i in MOVE A X i ++
+  let i := MOVE_length + i in JMP p i ++
+  let i := JMP_length + i in [DEC X j] ++
+  let i := 1 + i in MOVE A X i ++
+  let i := MOVE_length + i in JMP q i.
+
+Definition HALF_length := length (HALF A 0 0 0).
+
+Fixpoint half (n: nat) : nat + nat :=
+  match n with
+  | 0 => inl 0
+  | S n' => 
+      match half n' with
+      | inl m => inr m
+      | inr m => inl (S m)
+      end
+  end.
+
+Lemma half_spec n : 
+  match half n with
+  | inl m => n = m + m
+  | inr m => n = 1 + m + m
+  end.
+Proof. elim: n => [|n] /=; [done|case: (half n); lia]. Qed.
+
+Lemma sig_half (n: nat) : { m | n = m + m } + { m | n = 1 + m + m }.
+Proof.
+  elim : n. { left. by exists 0. }
+  move=> n [[m Hm]|[m Hm]].
+  - right. exists m. lia.
+  - left. exists (S m). lia.
+Qed.
+
+(* induction principle wrt. a decreasing measure f *)
+(* example: elim /(measure_ind length) : l. *)
+Lemma measure_ind {X : Type} (f : X -> nat) (P : X -> Prop) :
+  (forall x, (forall y, f y < f x -> P y) -> P x) -> forall (x : X), P x.
+Proof.
+  exact: (well_founded_ind (Wf_nat.well_founded_lt_compat X f _ (fun _ _ => id)) P).
+Qed.
+
+Lemma HALF_spec X p q v offset :
+  let x := vec_pos v X in let a := vec_pos v A in
+  A <> X ->
+  (offset, HALF X p q offset) // (offset, v) ->>
+    match half x with
+    | inl m => (p, vec_change (vec_change v X (a+m)) A 0)
+    | inr m => (q, vec_change (vec_change v X (a+m)) A 0)
+    end.
+Proof.
+  move=> /= HX. have H' : forall i, offset + i = i + offset by lia.
+  apply: sss_compute_trans.
+  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+    { by eexists [], _. }
+    rewrite ?H'. by apply: JMP_spec. }
+  move Hst: (st in _ // _ ->> st) => st.
+  elim /(measure_ind (fun v => vec_pos v X)) : v st Hst.
+  move=> v IH st <-.
+  case EX: (vec_pos v X) => [|[|n]].
+  { apply: Q_step_spec'. { by rewrite /= EX. }
+    apply: sss_compute_trans.
+    { apply: (subcode_sss_compute (P := (_, MOVE _ _ _))).
+      { eexists _, _. by rewrite /HALF [LHS]app_assoc. }
+      rewrite ?H'. by apply: MOVE_spec. }
+    apply: sss_compute_trans.
+    { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+      { eexists _, _. by rewrite /HALF [LHS]app_assoc [LHS]app_assoc. }
+      rewrite ?H'. by apply: JMP_spec. }
+    apply: sss_compute_refl'. by rewrite EX !Nat.add_0_r. }
+  { apply: Q_step_spec'. { by rewrite /= EX. }
+    rewrite !Nat.add_assoc. apply: Q_step_spec'. { by rewrite /= (vec_change_eq erefl). }
+    apply: sss_compute_trans.
+    { apply: (subcode_sss_compute (P := (_, MOVE _ _ _))).
+      { eexists _, _. rewrite /HALF. by do 4 rewrite [LHS]app_assoc. }
+      rewrite ?H'. by apply: MOVE_spec. }
+    apply: sss_compute_trans.
+    { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+      { eexists _, _. rewrite /HALF. by do 5 rewrite [LHS]app_assoc. }
+      rewrite ?H'. by apply: JMP_spec. }
+    apply: sss_compute_refl'. by rewrite !(vec_norm HX) !Nat.add_0_r. }
+  apply: Q_step_spec'. { by rewrite /= EX. }
+  rewrite !Nat.add_assoc. apply: Q_step_spec'. { by rewrite /= (vec_change_eq erefl). }
+  apply: Q_step_spec'. { done. }
+  apply: IH. { rewrite !(vec_norm HX). lia. }
+  rewrite !(vec_norm HX) /=.
+  have := half_spec n. case: (half n).
+  - move=> m ?. rewrite !(vec_norm HX). congr pair. congr vec_change. congr vec_change. lia.
+  - move=> m ?. rewrite !(vec_norm HX). congr pair. congr vec_change. congr vec_change. lia.
+Qed.
