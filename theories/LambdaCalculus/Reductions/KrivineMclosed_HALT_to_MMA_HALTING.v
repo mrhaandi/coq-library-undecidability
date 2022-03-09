@@ -1,6 +1,8 @@
 (* TODO move to MinskyMachines *)
 From Undecidability Require Import
   LambdaCalculus.Krivine MinskyMachines.MM.
+From Undecidability Require
+  LambdaCalculus.Krivine MinskyMachines.MMA.mma_defs.
 From Undecidability.Shared.Libs.DLW
   Require Import Vec.pos Vec.vec Code.sss.
 
@@ -560,6 +562,18 @@ Proof.
   - by rewrite !(vec_norm HY).
 Qed.
 
+Lemma UNPACK_spec' {X Y v offset} :
+  vec_pos v X = 0 ->
+  (offset, UNPACK X Y offset) // (offset, v) ->> (0, v).
+Proof.
+  move=> H'X. have H' : forall i, offset + i = i + offset by lia.
+  apply: sss_compute_trans.
+  { apply: (subcode_sss_compute (P := (_, BR _ _ _ _))).
+    { by eexists [], _. }
+    rewrite ?H'. by apply: BR_spec. }
+  rewrite H'X. by apply: sss_compute_refl.
+Qed.
+
 (*
 (* IF X = (n+n+1)*2^m THEN X := n AND Y := m *)
 Definition UNPACK (X Y: counter) (offset: nat) : list mm_instr :=
@@ -811,6 +825,18 @@ Proof.
   by move=> ? -> ->.
 Qed.
 
+Lemma CASE_LAM_spec' p v offset :
+  vec_pos v TS = enc_cs [] ->
+  (offset, CASE_LAM p offset) // (offset, v) ->> (0, v).
+Proof.
+  move=> /= HTS. have H' : forall i, offset + i = i + offset by lia.
+  apply: sss_compute_trans.
+  { apply: (subcode_sss_compute (P := (_, UNPACK _ _ _))).
+    { by eexists [], _. }
+    rewrite ?H'. by apply: (UNPACK_spec' HTS). }
+  by apply: sss_compute_refl.
+Qed.
+
 Definition NOOP (offset : nat) : list mm_instr :=
   JMP (JMP_length + offset) offset.
 
@@ -991,7 +1017,8 @@ Proof.
       - do ? (rewrite vec_change_neq; first done). by eassumption.
       - do ? (rewrite vec_change_neq; first done). by rewrite (vec_change_eq erefl). }
     apply: sss_compute_refl'. by rewrite (counters_eta v).
-  - move=> s. case: ts; first done.
+  - (* case (lam s) *)
+    move=> s. case: ts; first done.
     move=> t'' ts'' H1v H2v H3v [<- <- <-].
     exists (vec_change (vec_change (vec_change (vec_change (vec_change v U (enc_term s)) TS (enc_cs ts'')) CTX (enc_cs (t''::ctx))) B 0) A 0).
     split. { move: H1v. by rewrite (counters_eta v). }
@@ -1016,3 +1043,106 @@ Proof.
       - do ? (rewrite vec_change_neq; first done). by rewrite (vec_change_eq erefl). }
     apply: sss_compute_refl'. by rewrite (counters_eta v).
 Qed.
+
+Arguments Krivine_step : simpl never.
+
+Lemma simulation ts ctx t v : halt_cbn ts ctx t ->
+  vec_pos v TS = enc_cs ts ->
+  vec_pos v CTX = enc_cs ctx ->
+  vec_pos v U = enc_term t ->
+  (sss_terminates (@mma_sss _) (1, PROG 1) (1, v)).
+Proof.
+  have H' : forall n, 1 + n = n + 1 by lia.
+  move=> /Krivine_step_spec [k] [ctx'] [t']. elim: k v ts ctx t.
+  { move=> v ts ctx t [] -> -> ->.
+    rewrite /sss_terminates /sss_output.
+    move=> H1v H2v H3v. eexists. split.
+    - apply: sss_compute_trans.
+      { apply: (subcode_sss_compute (P := (_, NOOP _))).
+        { by eexists [], _. }
+        apply: sss_progress_compute. by apply: NOOP_spec. }
+      apply: sss_compute_trans.
+      { apply: (subcode_sss_compute (P := (_, UNPACK _ _ _))).
+        { by eexists _, _. }
+        rewrite ?H'. by apply: (UNPACK_spec H3v). }
+      rewrite ?Nat.add_assoc. apply: Q_step_spec'. { by rewrite /= -/enc_term !(vec_norm HAB). }
+      rewrite ?Nat.add_assoc. apply: Q_step_spec'. { by rewrite /= !(vec_norm HAB). }
+      apply: sss_compute_trans.
+      { apply: (subcode_sss_compute (P := (_, CASE_LAM _ _))).
+        { eexists _, _. rewrite /PROG. by do 6 rewrite [LHS]app_assoc. }
+        rewrite ?H'. apply: CASE_LAM_spec'.
+        do ? (rewrite vec_change_neq; first done). by eassumption. }
+      apply: sss_compute_refl.
+    - left. rewrite /=. lia. }
+  move=> n IH v ts ctx t. rewrite (iter_plus 1 n) /=.
+  case E: (Krivine_step _) => [[[ts'' ctx''] t''] | ]; last by rewrite oiter_None.
+  move=> IH'.
+  move: E => /PROG_spec /[apply] /[apply] /[apply] /(_ 1) [w].
+  move=> [+] [+] [+] /sss_progress_compute.
+  move: IH' => /(IH w) /[apply] /[apply] /[apply].
+  move=> [] st [] + ? /sss_compute_trans H => /H {}H.
+  by exists st.
+Qed.
+
+Require Import Undecidability.L.Util.L_facts.
+Require Import Undecidability.LambdaCalculus.Util.term_facts.
+Require Import Undecidability.Shared.Libs.DLW.Code.subcode.
+
+#[local] Notation all := (fold_right and True).
+
+Fixpoint eclosed (u : eterm) :=
+  let '(closure ctx t) := u in bound (length ctx) t /\ all (map eclosed ctx).
+
+(* needs closedness of input so that there are no illegal inputs *)
+Lemma inverse_simulation ts ctx t v :
+  all (map eclosed ts) ->
+  eclosed (closure ctx t) ->
+  vec_pos v TS = enc_cs ts ->
+  vec_pos v CTX = enc_cs ctx ->
+  vec_pos v U = enc_term t ->
+  (sss_terminates (@mma_sss _) (1, PROG 1) (1, v)) ->
+  halt_cbn ts ctx t.
+Proof.
+  suff : forall ts ctx t,
+  (sss_terminates (@mma_sss _) (1, PROG 1) (1, v)) ->
+  all (map eclosed ts) ->
+  eclosed (closure ctx t) ->
+  vec_pos (snd (1, v)) TS = enc_cs ts ->
+  vec_pos (snd (1, v)) CTX = enc_cs ctx ->
+  vec_pos (snd (1, v)) U = enc_term t ->
+    exists (k : nat) (ctx' : list eterm) (t' : term),
+    Nat.iter k (obind Krivine_step) (Some (ts, ctx, t)) =
+    Some ([], ctx', lam t').
+  { do 6 (move=> /[apply]). by move=> /Krivine_step_spec. }
+  move=> {}ts {}ctx {}t H.
+  have : not (subcode.out_code (fst (1, v)) (1, PROG 1)).
+  { move=> /=. lia. }
+  have : fst (1, v) = 1 by done.
+  (* TODO just use measure induction...  *)
+  elim /sss_terminates_ind: H (H) ts ctx t.
+  - by apply: mma_defs.mma_sss_fun.
+  - done.
+  - move=> [offset {}v] /(_ (offset, PROG offset)).
+    move=> IH /= H ts ctx t ?. subst offset.
+    case E: (Krivine_step (ts, ctx, t)) => [[[ts'' ctx''] t'']|]; first last.
+    { move=> ? Hts [Ht Hctx] *. move: E. rewrite /Krivine_step -/Krivine_step.
+      case: (t) Ht.
+      - move=> [|n]; (case: (ctx); last by case); move=> /boundE /=; lia.
+      - done.
+      - case: (ts); last done. move=> *. by eexists 0, _, _. }
+  move=> ???.
+  move: E => /PROG_spec /[apply] /[apply] /[apply] /(_ 1).
+  move=> [w] [H1w] [H2w] [H3w].
+  move=> Hvw.
+  have : sss_terminates (mma_sss (n:=5)) (1, PROG 1) (1, w).
+  { move: H => [?] [? ?]. }
+  
+  move: (Hvw) => /IH => /(_ (subcode_refl _)).
+
+
+
+  move=> HTS HCTX HU H. apply /Krivine_step_spec.
+  
+
+
+  [] st [] H1st H2st. apply /Krivine_step_spec.

@@ -853,4 +853,4 @@ LambdaCalculus/Util/wCBN_facts.v
 LambdaCalculus/Util/Krivine_facts.v
 LambdaCalculus/Reductions/HaltLclosed_to_wCBNclosed.v
 LambdaCalculus/Reductions/wCBNclosed_to_wCBN.v
-LambdaCalculus/Reductions/wCBNclosed_to_KrivineM_HALT.v
+LambdaCalculus/Reductions/wCBNclosed_to_KrivineMclosed_HALT.v
