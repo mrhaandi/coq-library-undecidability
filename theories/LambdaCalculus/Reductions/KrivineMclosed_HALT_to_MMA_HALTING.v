@@ -23,6 +23,8 @@ Require Import ssreflect ssrbool ssrfun.
 #[local] Arguments vec_change_neq {X n v p q x}.
 #[local] Arguments vec_change_eq {X n v p q x}.
 
+Module Argument.
+
 Lemma vec_change_comm {X : Type} {n : nat} {v : vec X n} {p q : pos n} {x y : X} : p <> q -> 
   vec_change (vec_change v p x) q y = vec_change (vec_change v q y) p x.
 Proof.
@@ -1046,7 +1048,7 @@ Qed.
 
 Arguments Krivine_step : simpl never.
 
-Lemma simulation ts ctx t v : halt_cbn ts ctx t ->
+Lemma simulation {ts ctx t} v : halt_cbn ts ctx t ->
   vec_pos v TS = enc_cs ts ->
   vec_pos v CTX = enc_cs ctx ->
   vec_pos v U = enc_term t ->
@@ -1093,13 +1095,30 @@ Require Import Undecidability.Shared.Libs.DLW.Code.subcode.
 Fixpoint eclosed (u : eterm) :=
   let '(closure ctx t) := u in bound (length ctx) t /\ all (map eclosed ctx).
 
+Lemma Krivine_step_eclosed ts ctx t ts' ctx' t' :
+  Krivine_step (ts, ctx, t) = Some (ts', ctx', t') ->
+  all (map eclosed ts) -> eclosed (closure ctx t) ->
+  all (map eclosed ts') /\ eclosed (closure ctx' t').
+Proof.
+  rewrite /Krivine_step. case: t.
+  - move=> [|n].
+    + case: ctx; first done.
+      move=> [? ?] ? [<- <- <-] /=. tauto.
+    + case: ctx; first done.
+      move=> [? ?] ? [<- <- <-] /= ? [/boundE ?] [[]] *.
+      split; [done|split;[|done]]. constructor. lia.
+  - move=> > [<- <- <-] /= ? [/boundE]. tauto.
+  - move=> ?. case: ts; first done.
+    move=> > [<- <- <-] /= ? [/boundE]. tauto.
+Qed.
+
 (* needs closedness of input so that there are no illegal inputs *)
 Lemma inverse_simulation ts ctx t v :
-  all (map eclosed ts) ->
-  eclosed (closure ctx t) ->
   vec_pos v TS = enc_cs ts ->
   vec_pos v CTX = enc_cs ctx ->
   vec_pos v U = enc_term t ->
+  all (map eclosed ts) ->
+  eclosed (closure ctx t) ->
   (sss_terminates (@mma_sss _) (1, PROG 1) (1, v)) ->
   halt_cbn ts ctx t.
 Proof.
@@ -1114,35 +1133,45 @@ Proof.
     Nat.iter k (obind Krivine_step) (Some (ts, ctx, t)) =
     Some ([], ctx', lam t').
   { do 6 (move=> /[apply]). by move=> /Krivine_step_spec. }
-  move=> {}ts {}ctx {}t H.
-  have : not (subcode.out_code (fst (1, v)) (1, PROG 1)).
-  { move=> /=. lia. }
-  have : fst (1, v) = 1 by done.
-  (* TODO just use measure induction...  *)
-  elim /sss_terminates_ind: H (H) ts ctx t.
-  - by apply: mma_defs.mma_sss_fun.
-  - done.
-  - move=> [offset {}v] /(_ (offset, PROG offset)).
-    move=> IH /= H ts ctx t ?. subst offset.
-    case E: (Krivine_step (ts, ctx, t)) => [[[ts'' ctx''] t'']|]; first last.
-    { move=> ? Hts [Ht Hctx] *. move: E. rewrite /Krivine_step -/Krivine_step.
-      case: (t) Ht.
-      - move=> [|n]; (case: (ctx); last by case); move=> /boundE /=; lia.
-      - done.
-      - case: (ts); last done. move=> *. by eexists 0, _, _. }
-  move=> ???.
-  move: E => /PROG_spec /[apply] /[apply] /[apply] /(_ 1).
-  move=> [w] [H1w] [H2w] [H3w].
-  move=> Hvw.
-  have : sss_terminates (mma_sss (n:=5)) (1, PROG 1) (1, w).
-  { move: H => [?] [? ?]. }
-  
-  move: (Hvw) => /IH => /(_ (subcode_refl _)).
+  move=> {}ts {}ctx {}t [] st [] [k] + Hst.
+  elim /(measure_ind id): k ts ctx t v.
+  move=> [|k].
+  { move=> _ > /sss_steps_0_inv ?. subst st.
+    exfalso. move: Hst => /=. lia. }
+  move=> IH ts ctx t v HSk.
+  case E: (Krivine_step (ts, ctx, t)) => [[[ts'' ctx''] t'']|]; first last.
+  { move=> Hts [Ht Hctx] *. move: E. rewrite /Krivine_step -/Krivine_step.
+    case: (t) Ht.
+    - move=> [|n]; (case: (ctx); last by case); move=> /boundE /=; lia.
+    - done.
+    - case: (ts); last done. move=> *. by eexists 0, _, _. }
+  move: (E) => /Krivine_step_eclosed /[apply] /[apply].
+  move=> [] /IH /[apply] {}IH.
+  move: (E) => /PROG_spec /[apply] /[apply] /[apply] /(_ 1).
+  move=> [w] [+] [+] [+] => /IH /[apply] /[apply] {}IH.
+  move: Hst HSk => /subcode_sss_progress_inv /[apply] /[apply].
+  move=> /(_ (@mma_defs.mma_sss_fun _) (subcode_refl _)).
+  move=> [q] [] /IH /[apply] => - [k'] [ctx'] [t'] Hk'.
+  exists (1+k'), ctx', t'. by rewrite iter_plus /= E.
+Qed.
 
+Definition input t :=
+  0 ## 0 ## 0 ## 0 ## enc_term t ## (Vector.nil _).
 
+End Argument.
 
-  move=> HTS HCTX HU H. apply /Krivine_step_spec.
-  
+Require Import Undecidability.Synthetic.Definitions.
+Require Import Undecidability.L.Util.L_facts.
+Require Import Undecidability.LambdaCalculus.Util.term_facts.
 
-
-  [] st [] H1st H2st. apply /Krivine_step_spec.
+Theorem reduction : KrivineMclosed_HALT ⪯ (@MMA_HALTING 5).
+Proof.
+  exists (fun '(exist _ t _) => 
+    (Argument.PROG 1, Argument.input t)).
+  move=> [t Ht]. split.
+  - move=> /Argument.simulation. by apply.
+  - move=> /Argument.inverse_simulation. apply; [done..|].
+    split; last done.
+    apply /closed_dcl /closed_I.
+    move=> ?. by rewrite L_subst_wCBN_subst.
+Qed.
