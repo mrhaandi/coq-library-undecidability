@@ -42,12 +42,12 @@ Lemma vec_change_same' {X : Type} {n : nat} (v : vec X n) (p : pos n) (x : X) :
 Proof. move=> <-. by apply: vec_change_same. Qed.
 
 (* auxiliary counters *)
-Notation A := (Fin.F1 : counter).
-Notation B := (Fin.FS (Fin.F1) : counter).
+#[local] Notation A := (Fin.F1 : counter).
+#[local] Notation B := (Fin.FS (Fin.F1) : counter).
 (* data counters *)
-Notation TS := (Fin.FS (Fin.FS (Fin.F1)) : counter).
-Notation CTX := (Fin.FS (Fin.FS (Fin.FS (Fin.F1))) : counter).
-Notation U := (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1)))) : counter).
+#[local] Notation TS := (Fin.FS (Fin.FS (Fin.F1)) : counter).
+#[local] Notation CTX := (Fin.FS (Fin.FS (Fin.FS (Fin.F1))) : counter).
+#[local] Notation U := (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.F1)))) : counter).
 
 (* simplify vec_change statements *)
 Definition vec_norm {X Y: counter} (HXY : X <> Y) := (
@@ -112,17 +112,76 @@ Definition ZERO (X: counter) (offset: nat) : list mm_instr :=
 
 Definition ZERO_length := 1.
 
+Lemma step_dec_0 {P : list mm_instr} {offset} i {v st X p} : 
+  nth_error P i = Some (DEC X p) ->
+  vec_pos v X = 0 ->
+  (offset, P) // (1 + i + offset, v) ->> st ->
+  (offset, P) // (i + offset, v) ->> st.
+Proof.
+  move=> /(@nth_error_split mm_instr) => - [l] [r] [-> <-] E.
+  apply: sss_compute_trans. exists 1.
+  apply: in_sss_steps_S; [|by apply: in_sss_steps_0].
+  do 5 eexists. split; [done|]. rewrite (Nat.add_comm offset).
+  split; [done|]. by apply: in_mma_sss_dec_0.
+Qed.
+
+Lemma mm_step {P : list mm_instr} {offset} i {v st} : 
+  match nth_error P i with
+  | Some (INC X) =>
+      (offset, P) // (1 + i + offset, vec_change v X (S (vec_pos v X))) ->> st
+  | Some (DEC X p) =>
+      match vec_pos v X with
+      | 0 => (offset, P) // (1 + i + offset, v) ->> st
+      | S n => (offset, P) // (p, vec_change v X n) ->> st
+      end
+  | None => False
+  end ->
+  (offset, P) // (i + offset, v) ->> st.
+Proof.
+  case EPi: (nth_error P i) => [instr|]; last done.
+  move: EPi => /(@nth_error_split mm_instr) => - [l] [r] [-> <-].
+  case: instr.
+  - move=> ?. apply: sss_compute_trans. exists 1.
+    apply: in_sss_steps_S; [|by apply: in_sss_steps_0].
+    do 5 eexists. split; [done|]. rewrite (Nat.add_comm offset).
+    split; [done|]. by apply: in_mma_sss_inc.
+  - move=> X ?. case E: (vec_pos v X) => [|?].
+    + apply: sss_compute_trans. exists 1.
+      apply: in_sss_steps_S; [|by apply: in_sss_steps_0].
+      do 5 eexists. split; [done|]. rewrite (Nat.add_comm offset).
+      split; [done|]. by apply: in_mma_sss_dec_0.
+    + apply: sss_compute_trans. exists 1.
+      apply: in_sss_steps_S; [|by apply: in_sss_steps_0].
+      do 5 eexists. split; [done|]. rewrite (Nat.add_comm offset).
+      split; [done|]. by apply: in_mma_sss_dec_1.
+Qed.
+
+Lemma mm_step' {P : list mm_instr} {offset} i {v st} : 
+  match nth_error P i with
+  | Some (DEC X p) => vec_pos v X = 0
+  | _ => True
+  end ->
+  match nth_error P i with
+  | Some (DEC X p) => (offset, P) // (1 + i + offset, v) ->> st
+  | _ => True
+  end ->
+  (offset, P) // (i + offset, v) ->> st.
+Proof.
+Admitted.
+
+Arguments step_dec_0 {P} {offset} i {v st X p} &.
+
 Lemma ZERO_spec X v offset :
   (offset, ZERO X offset) // (0 + offset, v) ->> (ZERO_length+offset, vec_change v X 0).
 Proof.
   move En: (vec_pos v X) => n.
   elim: n v En.
   - move=> v En.
-    apply: Q_step_spec'. { by rewrite /= En. }
+    apply: (mm_step 0). rewrite /= En.
     apply: sss_compute_refl'. congr pair.
     by rewrite vec_change_same'.
   - move=> n IH v En.
-    apply: Q_step_spec'. { by rewrite /= En. }
+    apply: (mm_step 0). rewrite /= En.
     rewrite -(vec_change_idem v X n 0).
     apply: IH. by apply: vec_change_eq.
 Qed.
@@ -575,63 +634,6 @@ Proof.
     rewrite ?H'. by apply: BR_spec. }
   rewrite H'X. by apply: sss_compute_refl.
 Qed.
-
-(*
-(* IF X = (n+n+1)*2^m THEN X := n AND Y := m *)
-Definition UNPACK (X Y: counter) (offset: nat) : list mm_instr :=
-  let i := offset in BR X 0 (BR_length + i) i ++
-  let i := BR_length + i in ZERO A i ++
-  let j := ZERO_length + i in HALF X (HALF_length + j) (JMP_length + 1 + HALF_length + j) j ++
-  let i := HALF_length + j in [INC Y] ++
-  let i := 1 + i in JMP j i.
-
-Definition UNPACK_length := length (UNPACK A A 0).
-
-Lemma UNPACK_spec X Y m n v offset :
-  let x := vec_pos v X in
-  let y := vec_pos v Y in
-  x = (n+n+1) * (2 ^ m) ->
-  A <> X -> A <> Y -> X <> Y ->
-  (offset, UNPACK X Y offset) // (offset, v) ->>
-    (UNPACK_length + offset, vec_change (vec_change (vec_change v X n) Y (m+y)) A 0).
-Proof.
-  move=> /= H'X HX HY HXY. have H' : forall i, offset + i = i + offset by lia.
-  apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, BR _ _ _ _))).
-    { by eexists [], _. }
-    rewrite ?H'. by apply: BR_spec. }
-  have ->: vec_pos v X = S (vec_pos v X - 1).
-  { rewrite H'X. have := Nat.pow_nonzero 2 m. lia. }
-  apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, ZERO _ _))).
-    { by eexists _, _. }
-    rewrite ?H'. by apply: ZERO_spec. }
-  move Ew: (w in _ // _ ->> (_, w)) => w.
-  elim: m v H'X w Ew.
-  { move=> v H'X ? <-.
-    apply: sss_compute_trans.
-    { apply: (subcode_sss_compute (P := (_, HALF _ _ _ _))).
-      { eexists _, _. by rewrite /UNPACK [LHS]app_assoc. }
-      rewrite ?H'. by apply: HALF_spec. }
-    rewrite !(vec_norm HX) H'X half_spec_odd.
-    apply: sss_compute_refl'. congr pair.
-    by rewrite !Nat.add_0_l !(vec_norm HX) !(vec_norm HXY). }
-  move=> m IH v H'X ? <-.
-  apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, HALF _ _ _ _))).
-    { eexists _, _. by rewrite /UNPACK [LHS]app_assoc. }
-    rewrite ?H'. by apply: HALF_spec. }
-  rewrite !(vec_norm HX) H'X half_spec_even.
-  rewrite !Nat.add_assoc. apply: Q_step_spec'. { done. }
-  apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
-    { eexists _, _. rewrite /UNPACK. by do 3 rewrite [LHS]app_assoc. }
-    rewrite ?H'. by apply: JMP_spec. }
-  rewrite !(vec_norm HX) !(vec_norm HY).
-  apply: IH. { by rewrite !(vec_norm HXY). }
-  rewrite !(vec_norm HXY). congr vec_change. congr vec_change. congr vec_change. lia.
-Qed.
-*)
 
 Definition enc_pair (m n: nat) := (n+n+1)*(2^m).
 
