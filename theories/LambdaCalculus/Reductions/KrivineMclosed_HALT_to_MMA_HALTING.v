@@ -273,13 +273,13 @@ Proof.
   { move En: (vec_pos v' X) => n.
     elim: n (v') En.
     - move=> v'' En x w ->.
-      rewrite !Nat.add_assoc. apply: mma_step. rewrite /= En.
+      rewrite ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= En.
       apply: sss_compute_refl'. congr pair.
       rewrite (vec_change_same' _ X); first done.
       by rewrite vec_change_same'.
     - move=> n IH v'' En x w ->.
-      rewrite !Nat.add_assoc. apply: mma_step.
-      rewrite /= En !Nat.add_assoc. apply: mma_step. apply: mma_step. apply: IH.
+      rewrite ?(Nat.add_assoc _ _ offset). apply: mma_step.
+      rewrite /= En ?(Nat.add_assoc _ _ offset). apply: mma_step. apply: mma_step. apply: IH.
       + by rewrite !(vec_change_neq HX) vec_change_eq.
       + rewrite !(vec_norm HX). congr vec_change. lia. }
   move=> /(_ _ erefl) /sss_compute_trans. apply.
@@ -322,12 +322,12 @@ Proof.
   { move En: (vec_pos v' Y) => n /=.
     elim: n (v') En HAv'.
     - move=> v'' En HAv'' w ->.
-      rewrite !Nat.add_assoc. apply: mma_step. rewrite /= En.
+      rewrite ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= En.
       apply: sss_compute_refl'. congr pair.
       rewrite (vec_change_same' _ A) // (vec_change_same' _ Y) // vec_change_same' //=.
       lia.
     - move=> n IH v'' En HAv'' w ->.
-      rewrite !Nat.add_assoc. apply: mma_step. rewrite /= En.
+      rewrite ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= En.
       apply: (concat_sss_compute_trans 3). { by apply: DOUBLE_spec. }
       apply: IH.
       + by rewrite !(vec_change_neq HY) !(vec_change_neq HXY) vec_change_eq.
@@ -395,12 +395,12 @@ Proof.
     apply: (concat_sss_compute_trans 2). { by apply: MOVE_spec. }
     apply: (concat_sss_compute_trans 3). { by apply: JMP_spec. }
     apply: sss_compute_refl'. by rewrite EX !Nat.add_0_r. }
-  { apply: mma_step. rewrite /= EX !Nat.add_assoc.
+  { apply: mma_step. rewrite /= EX ?(Nat.add_assoc _ _ offset).
     apply: mma_step. rewrite /= (vec_change_eq erefl).
     apply: (concat_sss_compute_trans 5). { by apply: MOVE_spec. }
     apply: (concat_sss_compute_trans 6). { by apply: JMP_spec. }
     apply: sss_compute_refl'. by rewrite !(vec_norm HX) !Nat.add_0_r. }
-  apply: mma_step. rewrite /= EX !Nat.add_assoc.
+  apply: mma_step. rewrite /= EX ?(Nat.add_assoc _ _ offset).
   apply: mma_step. rewrite /= (vec_change_eq erefl).
   apply: mma_step. apply: IH. { rewrite !(vec_norm HX). lia. }
   rewrite !(vec_norm HX) /=.
@@ -478,7 +478,7 @@ Proof.
     congr vec_change. by rewrite vec_change_same'. }
   move=> m IH v' w' -> H'v' H''v'.
   apply: (concat_sss_compute_trans 3). { by apply: HALF_spec. }
-  rewrite H'v' half_spec_even !Nat.add_assoc. apply: mma_step.
+  rewrite H'v' half_spec_even ?(Nat.add_assoc _ _ offset). apply: mma_step.
   apply: (concat_sss_compute_trans 5). { by apply: JMP_spec. }
   apply: IH.
   - do ? rewrite ?(vec_norm (nesym HY)) ?(vec_norm (nesym HX)) ?(vec_norm HXY).
@@ -584,18 +584,19 @@ Definition CASE_APP (p: nat) (offset : nat) : list mm_instr :=
     let i := PACK_len + i in COPY TS CTX i ::
     let i := COPY_len + i in UNPACK CTX B i ::
     let i := UNPACK_len + i in UNPACK B CTX i ::
-    let i := UNPACK_len + i in JMP p :: []).
+    let i := UNPACK_len + i in ZERO B i ::
+    let i := ZERO_len + i in JMP p :: []).
 
 Definition CASE_APP_len := length (CASE_APP 0 0).
 
-Arguments Nat.pow : simpl never.
+#[local] Arguments Nat.pow : simpl never.
 
 Lemma CASE_APP_spec ts ctx t p v offset :
   vec_pos v TS = enc_cs ts ->
   vec_pos v CTX = enc_cs ctx ->
   vec_pos v B = enc_term t ->
   (offset, CASE_APP p offset) // (offset, v) ->>
-    (p, vec_change (vec_change v TS (enc_cs ((closure ctx t)::ts))) A 0).
+    (p, vec_change (vec_change (vec_change v TS (enc_cs ((closure ctx t)::ts))) B 0) A 0).
 Proof.
   move=> /= HTS HCTX HB.
   apply: (concat_sss_compute_trans 0). { by apply: PACK_spec. }
@@ -610,7 +611,8 @@ Proof.
   { apply: UNPACK_spec; [|done ..].
     do ? (rewrite ?(vec_change_eq erefl); try (rewrite vec_change_neq; first done)).
     done. }
-  apply: (concat_sss_compute_trans 5). { by apply: JMP_spec. }
+  apply: (concat_sss_compute_trans 5). { by apply: ZERO_spec. }
+  apply: (concat_sss_compute_trans 6). { by apply: JMP_spec. }
   apply: sss_compute_refl'. move: HTS HCTX HB. rewrite (counters_eta v) /=.
   by move=> -> -> ->.
 Qed.
@@ -668,6 +670,8 @@ Proof. done. Qed.
 Lemma HBU : B <> U.
 Proof. done. Qed.
 
+#[local] Arguments Krivine_step : simpl never.
+
 (* PROG corresponds to Krivine_step *)
 Lemma PROG_spec ts ctx t v ts' ctx' t' offset :
   vec_pos v TS = enc_cs ts ->
@@ -680,76 +684,53 @@ Lemma PROG_spec ts ctx t v ts' ctx' t' offset :
     vec_pos w U = enc_term t' /\
     (offset, PROG offset) // (offset, v) -+> (offset, w).
 Proof.
-  case: t.
+  move=> H1v H2v H3v H.
+  exists (vec_change (vec_change (vec_change (vec_change (vec_change v U (enc_term t')) CTX (enc_cs ctx')) TS (enc_cs ts')) B 0) A 0).
+  split. { move: H1v. by rewrite (counters_eta v). }
+  split. { move: H2v. by rewrite (counters_eta v). }
+  split. { move: H3v. by rewrite (counters_eta v). }
+  apply: sss_progress_compute_trans.
+  { apply: sss_compute_progress.
+    { by apply: (concat_sss_compute_trans 0); [apply JMP_spec | apply: sss_compute_refl]. }
+    case. rewrite /JMP_len /=. lia. }
+  case: t H1v H2v H3v H.
   - move=> [|n] /=; (case: ctx; first done).
     + (* case (var 0) *)
-      move=> [ctx'' t'' ?] H1v H2v H3v  [<- <- <-].
-      exists (vec_change (vec_change (vec_change (vec_change v U (enc_term t'')) CTX (enc_cs ctx'')) B 0) A 0).
-      split. { move: H1v. by rewrite (counters_eta v). }
-      split. { move: H2v. by rewrite (counters_eta v). }
-      split. { move: H3v. by rewrite (counters_eta v). }
-      apply: sss_progress_compute_trans.
-      { apply: sss_compute_progress.
-        { by apply: (concat_sss_compute_trans 0); [apply JMP_spec | apply: sss_compute_refl]. }
-        case. rewrite /JMP_len /=. lia. }
+      move=> [ctx'' t'' ?] H1v H2v H3v [<- <- <-].
       apply: (concat_sss_compute_trans 1). { by apply: (UNPACK_spec H3v). }
-      rewrite /= ?Nat.add_assoc. apply: mma_step. rewrite /= !(vec_norm HAB).
-      rewrite ?Nat.add_assoc. apply: mma_step. rewrite /= !(vec_norm HAU) !(vec_norm HBU).
+      rewrite /= ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= !(vec_norm HAB).
+      apply: mma_step. rewrite /= !(vec_norm HAU) !(vec_norm HBU).
       apply: (concat_sss_compute_trans 4).
       { apply: CASE_VAR0_spec. do ? (rewrite vec_change_neq; first done). by eassumption. }
-      apply: sss_compute_refl'. by rewrite (counters_eta v).
+      apply: sss_compute_refl'. by rewrite -H1v (counters_eta v).
     + (* case (var (S n)) *)
-      move=> ? ctx'' H1v H2v H3v  [<- <- <-].
-      exists (vec_change (vec_change (vec_change (vec_change v U (enc_term (var n))) CTX (enc_cs ctx'')) B 0) A 0).
-      split. { move: H1v. by rewrite (counters_eta v). }
-      split. { move: H2v. by rewrite (counters_eta v). }
-      split. { move: H3v. by rewrite (counters_eta v). }
-      apply: sss_progress_compute_trans.
-      { apply: sss_compute_progress.
-        { by apply: (concat_sss_compute_trans 0); [apply JMP_spec | apply: sss_compute_refl]. }
-        case. rewrite /JMP_len /=. lia. }
+      move=> ? ctx'' H1v H2v H3v [<- <- <-].
       apply: (concat_sss_compute_trans 1). { by apply: (UNPACK_spec H3v). }
-      rewrite /= ?Nat.add_assoc. apply: mma_step. rewrite /= !(vec_norm HAB).
-      rewrite ?Nat.add_assoc. apply: mma_step. rewrite /= !(vec_norm HAU) !(vec_norm HBU).
+      rewrite /= ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= !(vec_norm HAB).
+      rewrite ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= !(vec_norm HAU) !(vec_norm HBU).
       apply: (concat_sss_compute_trans 5).
       { apply: CASE_VARS_spec.
         - do ? (rewrite vec_change_neq; first done). by eassumption.
         - by rewrite (vec_change_eq erefl).
         - do ? (rewrite vec_change_neq; first done). by rewrite (vec_change_eq erefl). }
-      apply: sss_compute_refl'. by rewrite (counters_eta v).
+      apply: sss_compute_refl'. by rewrite -H1v (counters_eta v).
   - (* case (app s t) *)
     move=> s t H1v H2v H3v [<- <- <-].
-    exists (vec_change (vec_change (vec_change (vec_change v U (enc_term s)) B (enc_term t)) TS (enc_cs ((closure ctx t)::ts))) A 0).
-    split. { move: H1v. by rewrite (counters_eta v). }
-    split. { move: H2v. by rewrite (counters_eta v). }
-    split. { move: H3v. by rewrite (counters_eta v). }
-    apply: sss_progress_compute_trans.
-    { apply: sss_compute_progress.
-      { by apply: (concat_sss_compute_trans 0); [apply JMP_spec | apply: sss_compute_refl]. }
-      case. rewrite /JMP_len /=. lia. }
     apply: (concat_sss_compute_trans 1). { by apply: (UNPACK_spec H3v). }
-    rewrite /= ?Nat.add_assoc. apply: mma_step. rewrite /= -/enc_term !(vec_norm HAB).
-    rewrite ?Nat.add_assoc. apply: mma_step. rewrite /= !(vec_norm HAB).
+    rewrite /= ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= -/enc_term !(vec_norm HAB).
+    rewrite ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= !(vec_norm HAB).
     apply: (concat_sss_compute_trans 8).
     { apply: CASE_APP_spec.
       - do ? (rewrite vec_change_neq; first done). by eassumption.
       - do ? (rewrite vec_change_neq; first done). by eassumption.
       - do ? (rewrite vec_change_neq; first done). by rewrite (vec_change_eq erefl). }
-    apply: sss_compute_refl'. by rewrite (counters_eta v).
+    apply: sss_compute_refl'. by rewrite -H2v (counters_eta v).
   - (* case (lam s) *)
     move=> s. case: ts; first done.
     move=> t'' ts'' H1v H2v H3v [<- <- <-].
-    exists (vec_change (vec_change (vec_change (vec_change (vec_change v U (enc_term s)) TS (enc_cs ts'')) CTX (enc_cs (t''::ctx))) B 0) A 0).
-    split. { move: H1v. by rewrite (counters_eta v). }
-    split. { move: H2v. by rewrite (counters_eta v). }
-    split. { move: H3v. by rewrite (counters_eta v). }
-    apply: sss_progress_compute_trans.
-    { apply: sss_compute_progress.
-      { by apply: (concat_sss_compute_trans 0); [apply JMP_spec | apply: sss_compute_refl]. }
-      case. rewrite /JMP_len /=. lia. }
     apply: (concat_sss_compute_trans 1). { by apply: (UNPACK_spec H3v). }
-    rewrite /= ?Nat.add_assoc. apply: mma_step. rewrite /= -/enc_term !(vec_norm HAB).
-    rewrite ?Nat.add_assoc. apply: mma_step. rewrite /= !(vec_norm HAB).
+    rewrite /= ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= -/enc_term !(vec_norm HAB).
+    rewrite ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= !(vec_norm HAB).
     apply: (concat_sss_compute_trans 7).
     { apply: CASE_LAM_spec.
       - do ? (rewrite vec_change_neq; first done). by eassumption.
@@ -758,23 +739,20 @@ Proof.
     apply: sss_compute_refl'. by rewrite (counters_eta v).
 Qed.
 
-#[local] Arguments Krivine_step : simpl never.
-
 Lemma simulation {ts ctx t} v : halt_cbn ts ctx t ->
   vec_pos v TS = enc_cs ts ->
   vec_pos v CTX = enc_cs ctx ->
   vec_pos v U = enc_term t ->
   (sss_terminates (@mma_sss _) (1, PROG 1) (1, v)).
 Proof.
-  have H' : forall n, 1 + n = n + 1 by lia.
   move=> /Krivine_step_spec [k] [ctx'] [t']. elim: k v ts ctx t.
   { move=> v ts ctx t [] -> -> ->.
     rewrite /sss_terminates /sss_output.
     move=> H1v H2v H3v. eexists. split.
     - apply: (concat_sss_compute_trans 0). { by apply: JMP_spec. }
       apply: (concat_sss_compute_trans 1). { by apply: (UNPACK_spec H3v). }
-      rewrite /= ?Nat.add_assoc. apply: mma_step. rewrite /= -/enc_term !(vec_norm HAB).
-      rewrite ?Nat.add_assoc. apply: mma_step. rewrite /= !(vec_norm HAB).
+      rewrite /= ?(Nat.add_assoc _ _ 1). apply: mma_step. rewrite /= -/enc_term !(vec_norm HAB).
+      rewrite ?(Nat.add_assoc _ _ 1). apply: mma_step. rewrite /= !(vec_norm HAB).
       apply: (concat_sss_compute_trans 7).
       { apply: CASE_LAM_spec'.
         do ? (rewrite vec_change_neq; first done). by eassumption. }
@@ -789,10 +767,6 @@ Proof.
   move=> [] st [] + ? /sss_compute_trans H => /H {}H.
   by exists st.
 Qed.
-
-Require Import Undecidability.L.Util.L_facts.
-Require Import Undecidability.LambdaCalculus.Util.term_facts.
-Require Import Undecidability.Shared.Libs.DLW.Code.subcode.
 
 #[local] Notation all := (fold_right and True).
 
@@ -823,17 +797,16 @@ Proof.
     exfalso. move: Hst => /=. lia. }
   move=> IH ts ctx t v HSk.
   case E: (Krivine_step (ts, ctx, t)) => [[[ts'' ctx''] t'']|]; first last.
-  { move=> Hts [Ht Hctx] *. move: E. rewrite /Krivine_step -/Krivine_step.
-    case: (t) Ht.
-    - move=> [|n]; (case: (ctx); last by case); move=> /boundE /=; lia.
-    - done.
-    - case: (ts); last done. move=> *. by eexists 0, _, _. }
+  { move: E => /Krivine_step_None /[apply] /[apply].
+    move=> [->] [t' ->] *. by eexists 0, _, _. }
   move: (E) => /Krivine_step_eclosed /[apply] /[apply].
   move=> [] /IH /[apply] {}IH.
   move: (E) => /PROG_spec /[apply] /[apply] /[apply] /(_ 1).
   move=> [w] [+] [+] [+] => /IH /[apply] /[apply] {}IH.
-  move: Hst HSk => /subcode_sss_progress_inv /[apply] /[apply].
-  move=> /(_ (@mma_defs.mma_sss_fun _) (subcode_refl _)).
+  have : subcode.subcode (1, PROG 1) (1, PROG 1).
+  { by exists [], []. }
+  have := @mma_defs.mma_sss_fun 5.
+  move: Hst HSk => /subcode_sss_progress_inv /[apply] /[apply] /[apply] /[apply].
   move=> [q] [] /IH /[apply] => - [k'] [ctx'] [t'] Hk'.
   exists (1+k'), ctx', t'. by rewrite iter_plus /= E.
 Qed.

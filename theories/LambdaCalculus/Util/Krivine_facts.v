@@ -226,6 +226,19 @@ Proof.
     move=> > [<- <- <-] /= ? [/boundE]. tauto.
 Qed.
 
+Lemma Krivine_step_None ts ctx t :
+  all (map eclosed ts) ->
+  eclosed (closure ctx t) ->
+  Krivine_step (ts, ctx, t) = None ->
+  ts = [] /\ exists t', t = lam t'.
+Proof.
+  case: t.
+  - move=> [|n]; (case: ctx; last by case); move=> _ [] /boundE /=; lia.
+  - done.
+  - case: ts; last done.
+    move=> *. by split; [|eexists].
+Qed.
+
 Lemma eclosed_closed t : 
   (forall sigma, subst sigma t = t) ->
   eclosed (closure [] t).
