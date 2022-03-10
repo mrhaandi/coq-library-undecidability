@@ -119,34 +119,33 @@ Proof.
   move En: (vec_pos v X) => n.
   elim: n v En.
   - move=> v En. apply: mma_step. rewrite /= En.
-    apply: sss_compute_refl'. congr pair.
-    by rewrite vec_change_same'.
+    apply: sss_compute_refl'. by rewrite vec_change_same'.
   - move=> n IH v En. apply: mma_step. rewrite /= En.
     rewrite -(vec_change_idem v X n 0).
     apply: IH. by apply: vec_change_eq.
 Qed.
 
 (* jump to address p *)
-Definition JMP p (offset : nat) : list mm_instr :=
+Definition JMP p : list mm_instr :=
   [INC A; DEC A p].
 
-Definition JMP_len := 2.
+Definition JMP_len := length (JMP 0).
 
 Lemma JMP_spec p v offset :
-  (offset, JMP p offset) // (0 + offset, v) ->> (p, v).
+  (offset, JMP p) // (0 + offset, v) ->> (p, v).
 Proof.
   apply: mma_step. apply: mma_step.
   rewrite /= (vec_change_eq erefl) vec_change_idem vec_change_same.
-  apply: sss_compute_refl.
+  by apply: sss_compute_refl.
 Qed.
 
 Arguments plus : simpl never.
 
 (* Y := X + Y *)
 Definition MOVE (X Y: counter) (offset: nat) : list mm_instr :=
-  JMP (3+offset) offset ++ [INC Y; DEC X (2+offset)].
+  JMP (3+offset) ++ [INC Y; DEC X (2+offset)].
 
-Definition MOVE_len := JMP_len+2.
+Definition MOVE_len := length (MOVE A A 0).
 
 Lemma MOVE_spec X Y v offset :
   let x := vec_pos v X in
@@ -156,9 +155,9 @@ Lemma MOVE_spec X Y v offset :
 Proof.
   move=> /= HXY.
   apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (offset, JMP (3+offset) offset))).
-    { exists []. eexists. split; [done|rewrite /=; lia]. }
-    by apply: JMP_spec. }
+  { apply: (subcode_sss_compute (P := (_, JMP _))).
+    { by eexists [], _. }
+    rewrite /= Nat.add_0_r. by apply: JMP_spec. }
   move En: (vec_pos v X) => n.
   move Ew: (vec_change _ X 0) => w.
   elim: n v En w Ew.
@@ -174,7 +173,7 @@ Qed.
 
 (* Y := X *)
 Definition COPY (X Y: counter) (offset: nat) : list mm_instr :=
-  let i := offset in JMP (2+JMP_len+i) i ++
+  let i := offset in JMP (2+JMP_len+i) ++
   let j := JMP_len + i in [INC A; INC Y] ++
   let i := 2 + j in [DEC X j] ++
   let i := 1 + i in MOVE A X i ++ [].
@@ -189,7 +188,7 @@ Lemma COPY_spec X Y v offset :
 Proof.
   move=> /= HX HY HXY. have H' : forall i, offset + i = i + offset by lia.
   apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+  { apply: (subcode_sss_compute (P := (_, JMP _))).
     { by eexists [], _. }
     rewrite ?H'. by apply: JMP_spec. }
   move Ew: (vec_change _ A _) => w.
@@ -213,11 +212,11 @@ Qed.
 (* X := X+X *)
 Definition DOUBLE (X: counter) (offset: nat) : list mm_instr :=
   let i := offset in ZERO A offset ++ 
-  let i := ZERO_len + i in JMP (JMP_len + 2 + i) i ++
+  let i := ZERO_len + i in JMP (JMP_len + 2 + i) ++
   let i := JMP_len + i in [INC A; INC A; DEC X i] ++
   let i := 3 + i in MOVE A X i.
 
-Definition DOUBLE_len := ZERO_len + JMP_len + 3 + MOVE_len.
+Definition DOUBLE_len := length (DOUBLE A 0).
 
 Arguments List.app : simpl never.
 
@@ -234,7 +233,7 @@ Proof.
     { exists []. eexists. split; [done|rewrite /=; lia]. }
     by apply: ZERO_spec. }
   apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+  { apply: (subcode_sss_compute (P := (_, JMP _))).
     { rewrite /= /DOUBLE. by do 2 eexists. }
     rewrite ?H'. by apply: JMP_spec. }
   move Ev': (vec_change v A 0) => v'.
@@ -268,11 +267,11 @@ Qed.
 Definition PACK (X Y: counter) (offset: nat) : list mm_instr :=
   DOUBLE X offset ++
   let i := DOUBLE_len + offset in [INC X] ++
-  let i := 1 + i in JMP (DOUBLE_len+JMP_len+i) i ++
+  let i := 1 + i in JMP (DOUBLE_len+JMP_len+i) ++
   let i := JMP_len + i in DOUBLE X i ++
   [DEC Y i].
 
-Definition PACK_len :=  DOUBLE_len + 1 + JMP_len + DOUBLE_len + 1.
+Definition PACK_len := length (PACK A A 0).
 
 Lemma PACK_spec X Y v offset :
   let x := vec_pos v X in
@@ -288,7 +287,7 @@ Proof.
     rewrite ?H'. by apply: DOUBLE_spec. }
   apply: mma_step.
   apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+  { apply: (subcode_sss_compute (P := (_, JMP _))).
     { do 2 eexists. rewrite /PACK. by rewrite [LHS]app_assoc. }
     rewrite ?H'. by apply: JMP_spec. }
   move Ev': (v' in _ // (_, v') ->> _) => v'.
@@ -326,13 +325,13 @@ Qed.
 
 (* X := X/2 + A if X even goto p else goto q *)
 Definition HALF (X: counter) (p q: nat) (offset: nat) : list mm_instr :=
-  let i := offset in JMP (JMP_len + 1 + i) i ++
+  let i := offset in JMP (JMP_len + 1 + i) ++
   let i := JMP_len + i in let j := i in [INC A; DEC X (2+JMP_len+MOVE_len+i)] ++
   let i := 2 + i in MOVE A X i ++
-  let i := MOVE_len + i in JMP p i ++
+  let i := MOVE_len + i in JMP p ++
   let i := JMP_len + i in [DEC X j] ++
   let i := 1 + i in MOVE A X i ++
-  let i := MOVE_len + i in JMP q i.
+  let i := MOVE_len + i in JMP q ++ [].
 
 Definition HALF_len := length (HALF A 0 0 0).
 
@@ -370,7 +369,7 @@ Lemma HALF_spec X p q v offset :
 Proof.
   move=> /= HX. have H' : forall i, offset + i = i + offset by lia.
   apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+  { apply: (subcode_sss_compute (P := (_, JMP _))).
     { by eexists [], _. }
     rewrite ?H'. by apply: JMP_spec. }
   move Hst: (st in _ // _ ->> st) => st.
@@ -383,7 +382,7 @@ Proof.
       { eexists _, _. by rewrite /HALF [LHS]app_assoc. }
       rewrite ?H'. by apply: MOVE_spec. }
     apply: sss_compute_trans.
-    { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+    { apply: (subcode_sss_compute (P := (_, JMP _))).
       { eexists _, _. by rewrite /HALF [LHS]app_assoc [LHS]app_assoc. }
       rewrite ?H'. by apply: JMP_spec. }
     apply: sss_compute_refl'. by rewrite EX !Nat.add_0_r. }
@@ -394,7 +393,7 @@ Proof.
       { eexists _, _. rewrite /HALF. by do 4 rewrite [LHS]app_assoc. }
       rewrite ?H'. by apply: MOVE_spec. }
     apply: sss_compute_trans.
-    { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+    { apply: (subcode_sss_compute (P := (_, JMP _))).
       { eexists _, _. rewrite /HALF. by do 5 rewrite [LHS]app_assoc. }
       rewrite ?H'. by apply: JMP_spec. }
     apply: sss_compute_refl'. by rewrite !(vec_norm HX) !Nat.add_0_r. }
@@ -410,9 +409,9 @@ Qed.
 (* IF X = 0 then GOTO p else GOTO q *)
 Definition BR (X: counter) (p q: nat) (offset: nat) : list mm_instr :=
   let i := offset in [DEC X (JMP_len + 1 + i)] ++
-  let i := 1 + i in JMP p i ++
+  let i := 1 + i in JMP p ++
   let i := JMP_len + i in [INC X] ++
-  let i := 1 + i in JMP q i.  
+  let i := 1 + i in JMP q ++ [].  
 
 Definition BR_len := length (BR A 0 0 0).
 
@@ -424,13 +423,13 @@ Proof.
   case EX: (vec_pos v X) => [|n].
   - apply: (mma_step 0). rewrite /= EX.
     apply: sss_compute_trans.
-    { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+    { apply: (subcode_sss_compute (P := (_, JMP _))).
       { eexists _, _. done. }
       rewrite ?H'. by apply: JMP_spec. }
     by apply: sss_compute_refl'.
   - apply: (mma_step 0). rewrite /= EX. apply: mma_step.
     apply: sss_compute_trans.
-    { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+    { apply: (subcode_sss_compute (P := (_, JMP _))).
       { eexists _, _. rewrite /BR. by do 2 rewrite [LHS]app_assoc. }
       rewrite ?H'. by apply: JMP_spec. }
     apply: sss_compute_refl'. congr pair.
@@ -444,7 +443,7 @@ Definition UNPACK (X Y: counter) (offset: nat) : list mm_instr :=
   let i := ZERO_len + i in ZERO Y i ++
   let j := ZERO_len + i in HALF X (HALF_len + j) (JMP_len + 1 + HALF_len + j) j ++
   let i := HALF_len + j in [INC Y] ++
-  let i := 1 + i in JMP j i.
+  let i := 1 + i in JMP j ++ [].
 
 Definition UNPACK_len := length (UNPACK A A 0).
 
@@ -497,7 +496,7 @@ Proof.
     rewrite ?H'. by apply: HALF_spec. }
   rewrite H'v' half_spec_even !Nat.add_assoc. apply: mma_step.
   apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+  { apply: (subcode_sss_compute (P := (_, JMP _))).
     { eexists _, _. rewrite /UNPACK. by do 4 rewrite [LHS]app_assoc. }
     rewrite ?H'. by apply: JMP_spec. }
   apply: IH.
@@ -557,7 +556,7 @@ Qed.
 Definition CASE_VAR0 (p: nat) (offset : nat) : list mm_instr :=
   let i := offset in UNPACK CTX U i ++
   let i := UNPACK_len + i in UNPACK U CTX i ++
-  let i := UNPACK_len + i in JMP p i.
+  let i := UNPACK_len + i in JMP p.
 
 Definition CASE_VAR0_len := length (CASE_VAR0 0 0).
 
@@ -579,7 +578,7 @@ Proof.
     have /= /UNPACK_spec : vec_pos v' U = enc_closure (closure ctx' t').
     { by rewrite -Ev' (counters_eta v). } by apply. }
   apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+  { apply: (subcode_sss_compute (P := (_, JMP _))).
     { eexists _, _. by rewrite /CASE_VAR0 [LHS]app_assoc. }
     rewrite ?H'. by apply: JMP_spec. }
   apply: sss_compute_refl'. congr pair.
@@ -590,7 +589,7 @@ Definition CASE_VARS (p: nat) (offset : nat) : list mm_instr :=
   let i := offset in UNPACK CTX B i ++
   let i := UNPACK_len + i in ZERO B i ++
   let i := ZERO_len + i in PACK U B i ++
-  let i := PACK_len + i in JMP p i.
+  let i := PACK_len + i in JMP p ++ [].
 
 Definition CASE_VARS_len := length (CASE_VARS 0 0).
 
@@ -615,7 +614,7 @@ Proof.
     { eexists _, _. by rewrite /CASE_VARS [LHS]app_assoc. }
     rewrite ?H'. by apply: PACK_spec. }
   apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+  { apply: (subcode_sss_compute (P := (_, JMP _))).
     { eexists _, _. rewrite /CASE_VARS. by do 2 rewrite [LHS]app_assoc. }
     rewrite ?H'. by apply: JMP_spec. }
   apply: sss_compute_refl'. move: HCTX HU HB. rewrite (counters_eta v) /=.
@@ -628,7 +627,7 @@ Definition CASE_APP (p: nat) (offset : nat) : list mm_instr :=
   let i := PACK_len + i in COPY TS CTX i ++
   let i := COPY_len + i in UNPACK CTX B i ++
   let i := UNPACK_len + i in UNPACK B CTX i ++
-  let i := UNPACK_len + i in JMP p i ++
+  let i := UNPACK_len + i in JMP p ++
   [].
 
 Definition CASE_APP_len := length (CASE_APP 0 0).
@@ -669,7 +668,7 @@ Proof.
     do ? (rewrite ?(vec_change_eq erefl); try (rewrite vec_change_neq; first done)).
     done. }
   apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+  { apply: (subcode_sss_compute (P := (_, JMP _))).
     { eexists _, _. rewrite /CASE_APP. by do 4 rewrite [LHS]app_assoc. }
     rewrite ?H'. by apply: JMP_spec. }
   apply: sss_compute_refl'. move: HTS HCTX HB. rewrite (counters_eta v) /=.
@@ -679,7 +678,7 @@ Qed.
 Definition CASE_LAM (p: nat) (offset : nat) : list mm_instr :=
   let i := offset in UNPACK TS B i ++
   let i := UNPACK_len + i in PACK CTX B i ++
-  let i := PACK_len + i in JMP p i ++
+  let i := PACK_len + i in JMP p ++
   [].
 
 Definition CASE_LAM_len := length (CASE_LAM 0 0).
@@ -701,7 +700,7 @@ Proof.
     { by eexists _, _. }
     rewrite ?H'. by apply: PACK_spec. }
   apply: sss_compute_trans.
-  { apply: (subcode_sss_compute (P := (_, JMP _ _))).
+  { apply: (subcode_sss_compute (P := (_, JMP _))).
     { eexists _, _. rewrite /CASE_VARS. by do 1 rewrite [LHS]app_assoc. }
     rewrite ?H'. by apply: JMP_spec. }
   apply: sss_compute_refl'. move: HTS HCTX HB. rewrite (counters_eta v) /=.
@@ -721,7 +720,7 @@ Proof.
 Qed.
 
 Definition NOOP (offset : nat) : list mm_instr :=
-  JMP (JMP_len + offset) offset.
+  JMP (JMP_len + offset).
 
 Definition NOOP_len := length (NOOP 0).
 
