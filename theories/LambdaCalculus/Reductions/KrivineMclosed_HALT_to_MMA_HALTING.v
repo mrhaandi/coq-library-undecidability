@@ -1,10 +1,8 @@
 (* TODO move to MinskyMachines *)
 From Undecidability Require Import
-  LambdaCalculus.Krivine MinskyMachines.MM.
-From Undecidability Require Import
-  LambdaCalculus.Util.Krivine_facts.
+  MinskyMachines.MM LambdaCalculus.Krivine LambdaCalculus.Util.Krivine_facts.
 From Undecidability Require
-  LambdaCalculus.Krivine MinskyMachines.MMA.mma_defs.
+  MinskyMachines.MMA.mma_defs.
 From Undecidability.Shared.Libs.DLW
   Require Import Vec.pos Vec.vec Code.sss.
 
@@ -13,6 +11,9 @@ Import ListNotations.
 Require Import ssreflect ssrbool ssrfun.
 
 Import L (term, var, app, lam).
+
+Set Default Goal Selector "!".
+Set Default Proof Using "Type".
 
 #[local] Unset Implicit Arguments.
 
@@ -203,7 +204,7 @@ Proof.
   elim: n v En w Ew.
   - move=> v En w <-.
     apply: mma_step. rewrite /= En Nat.add_0_r vec_change_same.
-    apply: sss_compute_refl'. congr pair. by rewrite vec_change_same'.
+    apply: sss_compute_refl'. by rewrite vec_change_same'.
   - move=> n IH v En w <-.
     apply: mma_step. rewrite /= En.
     apply: mma_step. apply: IH.
@@ -221,39 +222,42 @@ Definition COPY (X Y: counter) (offset: nat) : list mm_instr :=
 
 Definition COPY_len := length (COPY A A 0).
 
+#[local] Arguments pos_eq_dec {n} !x !y.
+
 Lemma COPY_spec X Y v offset :
   let x := vec_pos v X in let y := vec_pos v Y in let a := vec_pos v A in
-  A <> X -> A <> Y -> X <> Y ->
+  A <> X -> Y <> X ->
   (offset, COPY X Y offset) // (offset, v) ->>
-    (COPY_len+offset, vec_change (vec_change (vec_change v X (a+x)) Y (x+y)) A 0).
+    (COPY_len+offset,
+      if pos_eq_dec A Y then vec_change (vec_change v X (a+x+x)) A 0
+      else vec_change (vec_change (vec_change v X (a+x)) Y (x+y)) A 0).
 Proof.
-  move=> /= HX HY HXY.
+  move=> /= HX HXY.
   apply: (concat_sss_compute_trans 0). { by apply: JMP_spec. }
-  move Ew: (vec_change _ A _) => w.
+  move Ew: (w in _ // _ ->> (_, w)) => w.
   elim /(measure_ind (fun v => vec_pos v X)): v w Ew.
-  move=> v IH w <-. case Ex: (vec_pos v X) => [|x].
+  move=> v IH ? <-. case Ex: (vec_pos v X) => [|x].
   { apply: mma_step. rewrite /= Ex.
     apply: (concat_sss_compute_trans 3). { by apply: MOVE_spec. }
-    apply: sss_compute_refl'. congr pair.
-    rewrite !(vec_norm HXY). do ? congr vec_change. lia. }
+    apply: sss_compute_refl'. congr pair. rewrite !(vec_norm (nesym HXY)).
+    case: (is_left _); do ? congr vec_change; lia. }
   apply: mma_step. rewrite /= Ex.
   apply: mma_step. apply: mma_step. apply: IH.
   - rewrite !(vec_norm HXY) !(vec_norm HX). lia.
-  - do ? rewrite ?(vec_norm HX) ?(vec_norm HY) ?(vec_norm HXY).
-    do ? congr vec_change; lia.
+  - case: (pos_eq_dec A Y).
+    + move=> /= <-. do ? rewrite ?(vec_norm HX) ?(vec_norm HXY).
+      do ? congr vec_change; lia.
+    + move=> /= HY. do ? rewrite ?(vec_norm HX) ?(vec_norm HY) ?(vec_norm HXY).
+      do ? congr vec_change; lia.
 Qed.
 
 (* X := X+X *)
 Definition DOUBLE (X: counter) (offset: nat) : list mm_instr :=
   concat (
     let i := offset in ZERO A offset ::
-    let i := ZERO_len + i in JMP (JMP_len + 2 + i) ::
-    let i := JMP_len + i in [INC A; INC A; DEC X i] ::
-    let i := 3 + i in MOVE A X i :: []).
+    let i := ZERO_len + i in COPY X A i :: []).
 
 Definition DOUBLE_len := length (DOUBLE A 0).
-
-Arguments List.app : simpl never.
 
 Lemma DOUBLE_spec X v offset :
   let x := vec_pos v X in
@@ -263,29 +267,8 @@ Lemma DOUBLE_spec X v offset :
 Proof.
   move=> /= HX.
   apply: (concat_sss_compute_trans 0). { by apply: ZERO_spec. }
-  apply: (concat_sss_compute_trans 1). { by apply: JMP_spec. }
-  move Ev': (vec_change v A 0) => v'.
-  have :
-    let x := vec_pos v' X in forall w, w = vec_change (vec_change v' X 0) A (x+x+(vec_pos v' A)) ->
-    (offset, DOUBLE X offset) //
-    (JMP_len + 2 + (ZERO_len + offset), v') ->>
-    (JMP_len + 3 + (ZERO_len + offset), w).
-  { move En: (vec_pos v' X) => n.
-    elim: n (v') En.
-    - move=> v'' En x w ->.
-      rewrite ?(Nat.add_assoc _ _ offset). apply: mma_step. rewrite /= En.
-      apply: sss_compute_refl'. congr pair.
-      rewrite (vec_change_same' _ X); first done.
-      by rewrite vec_change_same'.
-    - move=> n IH v'' En x w ->.
-      rewrite ?(Nat.add_assoc _ _ offset). apply: mma_step.
-      rewrite /= En ?(Nat.add_assoc _ _ offset). apply: mma_step. apply: mma_step. apply: IH.
-      + by rewrite !(vec_change_neq HX) vec_change_eq.
-      + rewrite !(vec_norm HX). congr vec_change. lia. }
-  move=> /(_ _ erefl) /sss_compute_trans. apply.
-  apply: (concat_sss_compute_trans 3). { by apply: MOVE_spec. }
-  apply: sss_compute_refl'. congr pair.
-  rewrite -Ev' !(vec_norm HX). do ? congr vec_change. lia.
+  apply: (concat_sss_compute_trans 1). { by apply: COPY_spec. }
+  apply: sss_compute_refl'. by rewrite !(vec_norm HX).
 Qed.
 
 (* X := (X+X+1)*(2^Y) *)
@@ -415,7 +398,7 @@ Definition BR (X: counter) (p q: nat) (offset: nat) : list mm_instr :=
     let i := offset in [DEC X (JMP_len + 1 + i)] ::
     let i := 1 + i in JMP p ::
     let i := JMP_len + i in [INC X] ::
-    let i := 1 + i in JMP q :: []).  
+    let i := 1 + i in JMP q :: []).
 
 Definition BR_len := length (BR A 0 0 0).
 
@@ -649,6 +632,7 @@ Proof.
   by apply: sss_compute_refl.
 Qed.
 
+(* main simulation routine; by case analysis on current term *)
 Definition PROG (offset : nat) : list mm_instr :=
   concat (
     let i := offset in JMP (JMP_len + i) ::
