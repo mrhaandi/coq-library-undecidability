@@ -15,6 +15,8 @@ Import L (term, var, app, lam).
 Set Default Goal Selector "!".
 Set Default Proof Using "Type".
 
+Module Argument.
+
 #[local] Unset Implicit Arguments.
 
 #[local] Notation mm_instr := (mm_instr (pos 5)).
@@ -28,26 +30,13 @@ Set Default Proof Using "Type".
 
 #[local] Arguments vec_change_neq {X n v p q x}.
 #[local] Arguments vec_change_eq {X n v p q x}.
-
-Module Argument.
+#[local] Arguments vec_change_comm {X n v p q x y}.
 
 (* example: elim /(measure_ind length) : l. *)
 Lemma measure_ind {X : Type} (f : X -> nat) (P : X -> Prop) :
   (forall x, (forall y, f y < f x -> P y) -> P x) -> forall (x : X), P x.
 Proof.
   exact: (well_founded_ind (Wf_nat.well_founded_lt_compat X f _ (fun _ _ => id)) P).
-Qed.
-
-Lemma vec_change_comm {X : Type} {n : nat} {v : vec X n} {p q : pos n} {x y : X} : p <> q -> 
-  vec_change (vec_change v p x) q y = vec_change (vec_change v q y) p x.
-Proof.
-  move=> Hpq.
-  apply: vec_pos_ext => r.
-  case: (pos_eq_dec p r); case: (pos_eq_dec q r).
-  - move=> ??. by subst.
-  - move=> ? <-. by rewrite (vec_change_neq (nesym Hpq)) !(vec_change_eq erefl).
-  - move=> <- ?. by rewrite (vec_change_neq (Hpq)) !(vec_change_eq erefl).
-  - move=> Hqr Hpr. by do ? rewrite ?(vec_change_neq (Hpr)) ?(vec_change_neq (Hqr)).
 Qed.
 
 Lemma vec_change_same' {X : Type} {n : nat} (v : vec X n) (p : pos n) (x : X) :
