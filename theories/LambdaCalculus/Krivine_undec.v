@@ -1,5 +1,6 @@
-(* 
+(*
   Undecidability Result(s):
+    Krivine machine halting for closed terms (KrivineMclosed_HALT_undec)
     Krivine machine halting (KrivineM_HALT)
 *)
 

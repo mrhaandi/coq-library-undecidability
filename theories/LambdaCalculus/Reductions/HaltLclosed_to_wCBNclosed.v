@@ -1,11 +1,11 @@
-(* 
+(*
   Autor(s):
-    Andrej Dudenhefner (1) 
+    Andrej Dudenhefner (1)
   Affiliation(s):
     (1) TU Dortmund University, Dortmund, Germany
 *)
 
-(* 
+(*
   Reduction from:
     L halting for closed terms (HaltLclosed)
   to:
@@ -194,9 +194,6 @@ Qed.
 Lemma t_trans' {A : Type} {R : relation A} {x x' y z : A} : 
   x = x' -> clos_trans R x y -> clos_trans R y z -> clos_trans R x' z.
 Proof. move=> ->. by apply: t_trans. Qed.
-
-Lemma stepLam' s t t' : t' = (subst (scons t var) s) -> step (app (lam s) t) t'.
-Proof. move=> ->. apply: stepLam. Qed.
 
 Lemma steps_to_colon s u : closed s -> clos_trans step (app (cbv_cbn s) u) (colon s u).
 Proof.

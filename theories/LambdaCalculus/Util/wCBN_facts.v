@@ -17,7 +17,7 @@ Lemma stepE s t :
 Proof.
   elim; first done.
   case; [done| |done].
-  move=> []; [done| |].
+  case; [done| |].
   - move=> > ? [?] [-> ?].
     eexists. split; [done|by apply: stepApp].
   - move=> > ? ->. eexists. split; [done|by apply: stepLam].

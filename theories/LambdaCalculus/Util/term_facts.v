@@ -1,4 +1,3 @@
-
 From Undecidability Require L.L L.Util.L_facts.
 Import L (term, var, app, lam).
 Import L_facts (closed, bound, closed_dcl, dclvar, dclApp, dcllam).
@@ -25,7 +24,7 @@ Proof.
   - by move=> > /= ?.
   - move=> ? IH1 ? IH2 ?? Hsigma /=. congr app; [by apply: IH1 | by apply: IH2].
   - move=> ? IH > Hsigma /=. congr lam. apply: IH.
-    case; first done. move=> ?. by rewrite /= /funcomp Hsigma.
+    case; first done. move=> ?. by rewrite /= Hsigma.
 Qed.
 
 Lemma ren_ren_term xi1 xi2 t : ren xi2 (ren xi1 t) = ren (funcomp xi2 xi1) t.
@@ -53,7 +52,7 @@ Proof.
   - move=> ? IH1 ? IH2 ??. by rewrite IH1 IH2.
   - move=> ? IH ??. rewrite IH.
     congr lam. apply: ext_subst_term.
-    case; first done. move=> ?. by rewrite /funcomp /= !ren_ren_term.
+    case; first done. move=> ?. by rewrite /= !ren_ren_term.
 Qed.
 
 Lemma subst_ren_term xi sigma t : subst sigma (ren xi t) = subst (funcomp sigma xi) t.
@@ -72,8 +71,8 @@ Proof.
   - move=> ? IH1 ? IH2 ??. by rewrite IH1 IH2.
   - move=> ? IH ??. rewrite IH.
     congr lam. apply: ext_subst_term.
-    case; first done. move=> ?. rewrite /funcomp /=.
-    by rewrite !ren_subst_term !subst_ren_term.
+    case; first done. move=> ?.
+    by rewrite /= !ren_subst_term !subst_ren_term.
 Qed.
 
 Lemma subst_var_term s : subst var s = s.
@@ -126,7 +125,6 @@ Proof.
   - move=> ? IH1 ? IH2 ? /=. by rewrite IH1 IH2.
   - move=> ? IH k /=. rewrite IH.
     congr lam. apply: ext_subst_term.
-    rewrite /funcomp /=.
     move=> [|n] /=; first done.
     case: (Nat.eqb n k); last done.
     by rewrite (ren_closed Ht).

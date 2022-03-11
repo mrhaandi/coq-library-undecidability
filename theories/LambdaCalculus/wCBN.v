@@ -1,6 +1,7 @@
-(* 
+(*
   Problem(s):
     Weak call-by-name leftmost outermost normalization (wCBN)
+    Weak call-by-name leftmost outermost normalization for closed terms (wCBNclosed)
 
   Literature:
     [1] Plotkin, Gordon.
@@ -10,6 +11,8 @@
 
 Require Undecidability.L.L.
 Import L (term, var, app, lam).
+
+Require Import Relation_Operators.
 
 (* function composition *)
 Definition funcomp {X Y Z} (g : Y -> Z) (f : X -> Y) :=
@@ -41,8 +44,6 @@ Fixpoint subst (sigma: nat -> term) (s: term) : term :=
 Inductive step : term -> term -> Prop :=
   | stepLam s t    : step (app (lam s) t) (subst (scons t var) s)
   | stepApp s s' t : step s s' -> step (app s t) (app s' t).
-
-Require Import Relation_Operators.
 
 (* weak call-by-name leftmost outermost normalization *)
 Definition wCBN : term -> Prop :=

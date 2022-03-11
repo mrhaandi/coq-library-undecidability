@@ -1,3 +1,22 @@
+(*
+  Autor(s):
+    Andrej Dudenhefner (1)
+  Affiliation(s):
+    (1) TU Dortmund University, Dortmund, Germany
+*)
+
+(*
+  Reduction from:
+    Krivine machine halting for closed terms (KrivineMclosed_HALT)
+  to:
+    Alternate Minsky machine halting (MMA_HALTING)
+
+  Notes:
+    This reduction establishes (via wCNB) a link between
+    L halting and Minsky machine halting without Turing machine simulation.
+    However, complexity information is lost.
+*)
+
 (* TODO move to MinskyMachines *)
 From Undecidability Require Import
   MinskyMachines.MM LambdaCalculus.Krivine LambdaCalculus.Util.Krivine_facts.
@@ -13,7 +32,6 @@ Require Import ssreflect ssrbool ssrfun.
 Import L (term, var, app, lam).
 
 Set Default Goal Selector "!".
-Set Default Proof Using "Type".
 
 Module Argument.
 

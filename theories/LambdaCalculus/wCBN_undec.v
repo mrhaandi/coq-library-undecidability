@@ -1,4 +1,4 @@
-(* 
+(*
   Undecidability Result(s):
     Weak call-by-name leftmost outermost normalization of closed terms (wCBNclosed)
     Weak call-by-name leftmost outermost normalization (wCBN)

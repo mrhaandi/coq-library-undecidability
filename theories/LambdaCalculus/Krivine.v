@@ -2,7 +2,6 @@
   Problem(s):
     Krivine machine halting (KrivineM_HALT)
     Krivine machine halting for closed terms (KrivineMclosed_HALT)
-    
 
   Literature:
     [1] Krivine, Jean-Louis.
