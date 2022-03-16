@@ -90,21 +90,21 @@ move=> ?? IH [|n] ?; first done.
 apply: IH. lia.
 Qed.
 
-Inductive Γ_all_spec (bound i x : nat) : sty -> Prop :=
-  | Γ_all_lr_r : i = x -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> Γ_all_spec bound i x isr
-  | Γ_all_lr_l : i = S x -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> Γ_all_spec bound i x isl
-  | Γ_all_lr_bullet : i <> x -> i <> S x -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> Γ_all_spec bound i x bullet
-  | Γ_all_init_init : (forall i', nth x (Γ_all bound i') [] = s_init) -> Γ_all_spec bound i x (arr [hash; dollar] triangle)
-  | Γ_all_init_star_star : (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x (arr [arr [bullet] star] star)
-  | Γ_all_init_star_hash : (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x (arr [arr [isl] star] hash)
-  | Γ_all_init_star_dollar : (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x (arr [arr [isr] hash; arr [bullet] dollar] dollar)
-  | Γ_all_init_0_star : (forall i', nth x (Γ_all bound i') [] = s_0) -> Γ_all_spec bound i x (arr [symbol 0] star)
-  | Γ_all_init_0_hash : (forall i', nth x (Γ_all bound i') [] = s_0) -> Γ_all_spec bound i x (arr [symbol 0] hash)
-  | Γ_all_init_0_dollar : (forall i', nth x (Γ_all bound i') [] = s_0) -> Γ_all_spec bound i x (arr [symbol 1] dollar)
-  | Γ_all_init_1 : (forall i', nth x (Γ_all bound i') [] = s_1) -> Γ_all_spec bound i x (symbol 1)
-  | Γ_all_step_l a b a' b' : In ((a, b), (a', b')) rs -> (forall i', nth x (Γ_all bound i') [] = s_rule ((a, b), (a', b'))) -> Γ_all_spec bound i x (arr [isl] (arr [symbol a'] (symbol a)))
-  | Γ_all_step_r a b a' b' : In ((a, b), (a', b')) rs -> (forall i', nth x (Γ_all bound i') [] = s_rule ((a, b), (a', b'))) -> Γ_all_spec bound i x (arr [isr] (arr [symbol b'] (symbol b)))
-  | Γ_all_step_e a b a' b' e : In ((a, b), (a', b')) rs -> In e symbols -> (forall i', nth x (Γ_all bound i') [] = s_rule ((a, b), (a', b'))) -> Γ_all_spec bound i x (arr [bullet] (arr [symbol e] (symbol e))).
+Inductive Γ_all_spec (bound i x : nat) t : Prop :=
+  | Γ_all_lr_r : t = isr -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i = x -> Γ_all_spec bound i x t
+  | Γ_all_lr_l : t = isl -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i = S x -> Γ_all_spec bound i x t
+  | Γ_all_lr_bullet : t = bullet -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i <> x -> i <> S x -> Γ_all_spec bound i x t
+  | Γ_all_init_init : t = (arr [hash; dollar] triangle) -> (forall i', nth x (Γ_all bound i') [] = s_init) -> Γ_all_spec bound i x t
+  | Γ_all_init_star_star : t = (arr [arr [bullet] star] star) -> (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x t
+  | Γ_all_init_star_hash : t = (arr [arr [isl] star] hash) -> (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x t
+  | Γ_all_init_star_dollar : t = (arr [arr [isr] hash; arr [bullet] dollar] dollar) -> (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x t
+  | Γ_all_init_0_star : t = (arr [symbol 0] star) -> (forall i', nth x (Γ_all bound i') [] = s_0) -> Γ_all_spec bound i x t
+  | Γ_all_init_0_hash : t = (arr [symbol 0] hash) -> (forall i', nth x (Γ_all bound i') [] = s_0) -> Γ_all_spec bound i x t
+  | Γ_all_init_0_dollar : t = (arr [symbol 1] dollar) -> (forall i', nth x (Γ_all bound i') [] = s_0) -> Γ_all_spec bound i x t
+  | Γ_all_init_1 : t = (symbol 1) -> (forall i', nth x (Γ_all bound i') [] = s_1) -> Γ_all_spec bound i x t
+  | Γ_all_step_l a b a' b' : t = (arr [isl] (arr [symbol a'] (symbol a))) -> (forall i', nth x (Γ_all bound i') [] = s_rule ((a, b), (a', b'))) -> In ((a, b), (a', b')) rs -> Γ_all_spec bound i x t
+  | Γ_all_step_r a b a' b' : t = (arr [isr] (arr [symbol b'] (symbol b))) -> (forall i', nth x (Γ_all bound i') [] = s_rule ((a, b), (a', b'))) -> In ((a, b), (a', b')) rs -> Γ_all_spec bound i x t
+  | Γ_all_step_e a b a' b' e : t = (arr [bullet] (arr [symbol e] (symbol e))) -> (forall i', nth x (Γ_all bound i') [] = s_rule ((a, b), (a', b'))) -> In ((a, b), (a', b')) rs -> In e symbols -> Γ_all_spec bound i x t.
 
 Lemma nth_Γ_common x bound i i' :
   x >= length (Γ_lr bound i) ->
@@ -134,15 +134,15 @@ Proof.
     by apply: Γ_all_lr_bullet. }
   rewrite /Γ_all. move=> /[dup] /(@app_nth2 ty) + /nth_Γ_common.
   rewrite /Γ_all. move=> ->. move: (x - _).
-  case. { move=> Hx. by do 1 (case; [move=> <-; by eauto using Γ_all_spec with nocore|]). }
-  case. { move=> Hx. by do 3 (case; [move=> <-; by eauto using Γ_all_spec with nocore|]). }
-  case. { move=> Hx. by do 3 (case; [move=> <-; by eauto using Γ_all_spec with nocore|]). }
-  case. { move=> Hx. by do 1 (case; [move=> <-; by eauto using Γ_all_spec with nocore|]). }
+  case. { move=> Hx. by do 1 (case; [move=> <-; by eauto using Γ_all_spec, erefl with nocore|]). }
+  case. { move=> Hx. by do 3 (case; [move=> <-; by eauto using Γ_all_spec, erefl with nocore|]). }
+  case. { move=> Hx. by do 3 (case; [move=> <-; by eauto using Γ_all_spec, erefl with nocore|]). }
+  case. { move=> Hx. by do 1 (case; [move=> <-; by eauto using Γ_all_spec, erefl with nocore|]). }
   move=> x' /= + /[dup] /In_nth_In. move: (nth x' _ _) => phi Hx'.
   move=> /in_map_iff [[[? ?][? ?]]] /= [?]. move: Hx'. subst phi.
   move=> H'x ? /=.
-  do 2 (case; [move=> <-; by eauto using Γ_all_spec with nocore|]).
-  move=> /in_map_iff [?] [<-]. by eauto using Γ_all_spec with nocore.
+  do 2 (case; [move=> <-; by eauto using Γ_all_spec, erefl with nocore|]).
+  move=> /in_map_iff [?] [<-]. by eauto using Γ_all_spec, erefl with nocore.
 Qed.
 
 (*head form : x M1 .. Mn where x is free of bound*)
@@ -156,14 +156,31 @@ with head_form : tm -> Prop :=
 Lemma type_assignmentE Gamma M t : type_assignment Gamma M t ->
   match M with
   | var x => In t (nth x Gamma nil)
-  | lam M' => exists phi' t', 
-      t = arr phi' t' /\ type_assignment (phi' :: Gamma) M' t'
+  | lam M' => 
+    match t with
+    | atom _ => False
+    | arr phi' t' => type_assignment (phi' :: Gamma) M' t'
+    end
   | app M' N' => exists phi',
       type_assignment Gamma M' (arr phi' t) /\ Forall (type_assignment Gamma N') phi'
   end.
 Proof. by case=> *; do ? eexists; eassumption. Qed.
 
-
+(*
+Lemma type_assignmentE' Gamma M t : type_assignment Gamma M t ->
+  match M with
+  | var x => In t (nth x Gamma nil)
+  | lam M' => 
+      match t with
+      | atom _ => False
+      | arr phi' t' => type_assignment (phi' :: Gamma) M' t'
+      end
+  | app M' N' => exists phi',
+      type_assignment Gamma M' (arr phi' t) /\ Forall (type_assignment Gamma N') phi'
+  end.
+Proof. by case=> *; do ? eexists; eassumption. Qed.
+*)
+(*
 Lemma In_nthE t x (Gamma : list ty) :
   In t (nth x Gamma []) ->
   exists phi, In phi Gamma /\ In t phi.
@@ -184,6 +201,7 @@ Lemma InΓ_lrE t x bound i :
 Proof.
   move=> /In_nthE [?] [/in_map_iff] [j] [<-] /in_seq [? ?] ?. by exists j.
 Qed.
+*)
 
 (*only s_rule can be used deriving a type with two parameters for a normal form*)
 Lemma two_params_rule (bound i: nat) N (phi psi : ty) (s : sty) :
@@ -193,8 +211,7 @@ Lemma two_params_rule (bound i: nat) N (phi psi : ty) (s : sty) :
 Proof.
   move=> H. elim: H phi psi s.
   { move=> x > /type_assignmentE.
-    move=> /In_Γ_allE. move Et: (arr _ _) => t H.
-    case: H Et => // > _ _ => [| |_] [] *; subst; by eexists _, _. }
+    move=> /In_Γ_allE [] // > [] *; subst; by eexists _, _. }
   move=> > ? IH ? > /type_assignmentE - [phi'] [] /IH.
   firstorder done.
 Qed.
@@ -204,8 +221,7 @@ Lemma nf_hf_atom Gamma N a :
   type_assignment Gamma N (atom a) ->
   head_form N.
 Proof.
-  case; [done|].
-  by move=> ?? /type_assignmentE [?] [?] [].
+  case; [done|]. by move=> ?? /type_assignmentE.
 Qed.
 
 (*if triangle is inhabited in (Γ_init ++ Γ_step rs), then hash, dollar is inhabited in (Γ_all rs 0 0)*)
@@ -217,15 +233,13 @@ Lemma soundness_init (N : tm) :
   type_assignment (Γ_all 0 0) N' dollar.
 Proof.
   case.
-  { move=> x /type_assignmentE /(In_Γ_allE 0 0).
-    move Et: (triangle) => t H. by case: H Et. }
+  { by move=> x /type_assignmentE /(In_Γ_allE 0 0) []. }
   move=> ? N' []; first last.
   { move=> > /two_params_rule H ??.
     move=> /type_assignmentE [?] [/type_assignmentE] [?] [].
     by move=> /(H 0 0) [?] [?] []. }
-  move=> ?? /type_assignmentE [?] [] /type_assignmentE /(In_Γ_allE 0 0).
-  move Et: (arr _ triangle) => t H. case: H Et => //.
-  move=> ? [->] /Forall_cons_iff [?] /Forall_cons_iff [? _].
+  move=> ?? /type_assignmentE [?] [] /type_assignmentE /(In_Γ_allE 0 0) [] //.
+  move=> [->] ? /Forall_cons_iff [?] /Forall_cons_iff [? _].
   exists N'. split; last done.
   apply: nf_hf_atom; by eassumption.
 Qed.
@@ -245,6 +259,7 @@ Proof.
   exact: (well_founded_induction_type (Wf_nat.well_founded_lt_compat X f _ (fun _ _ => id)) P).
 Qed.
 
+(*
 (* TODO later extend to necessary types *)
 Lemma hash_spec phi x bound i :
   In (arr phi hash) (nth x (Γ_all bound i) []) ->
@@ -260,13 +275,17 @@ Proof.
     by move=> /in_map_iff [?] []. }
   intuition subst; firstorder done.
 Qed.
+*)
 
+(*
 Lemma In_atom_Gamma a x bound i : In (atom a) (nth x (Γ_all bound i) []) ->
   atom a = symbol 1 \/ atom a = isl \/ atom a = isr \/ atom a = bullet.
 Proof.
   move=> /In_nthE [?] [/in_app_iff] [].
   { move=> /in_map_iff [?] [<-] _. rewrite /s_pos.
 Admitted.
+*)
+
 (*
 NEEDS PREDICATE FOR IN GAMMA
 *)
@@ -282,14 +301,21 @@ Lemma soundness_expand (bound : nat) (N : tm) :
 Proof.
   elim /(measure_rect tm_size): N bound.
   move=> ? + bound Hx. case: Hx.
-  { move=> ? IH ? /type_assignmentE. admit. (* IN GAMMA *) }
+  { by move=> ? IH ? /type_assignmentE /In_Γ_allE []. }
   move=> M N []; first last.
   { move=> > /two_params_rule H ???? /type_assignmentE [?] [/type_assignmentE] [?] [].
     by move=> /H [?] [?] []. }
-  move=> ???? /type_assignmentE [?] [/type_assignmentE].
-  move=> /[dup] /hash_spec [].
-  - admit.
-  - move=> Hx. rewrite Hx /=.
-    case; [done|case; [|by case]].
-    move=> [<-] /Forall_cons_iff [+ _].
+  move=> ? H0N IH IH' /type_assignmentE [?] [/type_assignmentE].
+  move=> /In_Γ_allE [] //.
+  - move=> [->] Hx /Forall_cons_iff [H1N _].
+    move: H0N IH IH' H1N => [].
+    { move=> ? [].
+      - by move=> ??? /type_assignmentE /In_Γ_allE [].
+      - by move=> > /two_params_rule H ??? /type_assignmentE [?] [/H] [?] [?] []. }
+    move=> N' H0N' IH IH' /type_assignmentE H1N'.
+    move=> /type_assignmentE [?] [/type_assignmentE].
+    rewrite Hx. case; [done|case;[done|case;[|done]]].
+    move=> [<-] /Forall_cons_iff [/type_assignmentE H2N'] /Forall_cons_iff [/type_assignmentE H3N' _].
+    have /= := IH N' _ (S bound). case.
+    TODO
 
