@@ -6,12 +6,33 @@ Require Import Undecidability.IntersectionTypes.CDV.
 
 Require Import Undecidability.StringRewriting.SSTS.
 
-Require Import List PeanoNat Lia.
+Require Import Relations List PeanoNat Lia.
 Import ListNotations.
 
 Import CDV (var, app, lam).
 
 Require Import ssreflect ssrbool ssrfun.
+
+Lemma map_nth_seq {X : Type} (l : list X) d : 
+  map (fun i => nth i l d) (seq 0 (length l)) = l.
+Proof.
+  elim: l; first done.
+  move=> ? ? IH /=. by rewrite -seq_shift map_map IH.
+Qed.
+
+Lemma step_spec (rs : Ssts) a b a' b' i v : In ((a, b), (a', b')) rs ->
+  nth_error v i = Some a -> nth_error v (S i) = Some b ->
+  step rs v (map (fun j => if Nat.eqb j i then a' else if Nat.eqb j (S i) then b' else nth j v 0) (seq 0 (length v))).
+Proof.
+  move=> /step_intro H. elim: i v.
+  { move=> [|? [|? v]] /=; [done|done|].
+    move=> [->] [->]. have := H [] v.
+    by rewrite -!seq_shift !map_map /= map_nth_seq. }
+  move=> i IH [|? v] /=; first done.
+  move=> /IH /[apply]. rewrite -!seq_shift !map_map /=.
+  move: (map _ _) => ? [] > /step_intro H'.
+  by apply: (H' (_ :: _) _).
+Qed.
 
 Section Argument.
 
@@ -91,9 +112,9 @@ apply: IH. lia.
 Qed.
 
 Inductive Γ_all_spec (bound i x : nat) t : Prop :=
-  | Γ_all_lr_r : t = isr -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i = S x -> Γ_all_spec bound i x t
-  | Γ_all_lr_l : t = isl -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i = x -> Γ_all_spec bound i x t
-  | Γ_all_lr_bullet : t = bullet -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i <> x -> i <> S x -> Γ_all_spec bound i x t
+  | Γ_all_lr_r : t = isr -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i = S x -> x < bound -> Γ_all_spec bound i x t
+  | Γ_all_lr_l : t = isl -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i = x -> x < bound -> Γ_all_spec bound i x t
+  | Γ_all_lr_bullet : t = bullet -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i <> x -> i <> S x -> x < bound -> Γ_all_spec bound i x t
   | Γ_all_init_init : t = (arr [hash; dollar] triangle) -> (forall i', nth x (Γ_all bound i') [] = s_init) -> Γ_all_spec bound i x t
   | Γ_all_init_star_star : t = (arr [arr [bullet] star] star) -> (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x t
   | Γ_all_init_star_hash : t = (arr [arr [isr] star] hash) -> (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x t
@@ -230,7 +251,7 @@ Lemma soundness_init (N : tm) :
   type_assignment (Γ_init ++ Γ_step) N triangle ->
   exists (N' : tm), head_form N' /\
   type_assignment (Γ_all 0 0) N' hash /\
-  type_assignment (Γ_all 0 0) N' dollar.
+  type_assignment (Γ_all 0 1) N' dollar.
 Proof.
   case.
   { by move=> x /type_assignmentE /(In_Γ_allE 0 0) []. }
@@ -359,4 +380,145 @@ Proof.
     move=> /type_assignmentE [?] [/type_assignmentE].
     rewrite Hx. case; [|case;[done|by case]].
     by move=> [<-] /Forall_cons_iff [].
+Qed.
+
+Lemma Forall_nth_const v :
+  Forall (fun i => nth i v 0 = 1) (seq 0 (length v)) ->
+  v = repeat 1 (length v).
+Proof.
+  elim: v; first done.
+  move=> ? v IH /= /Forall_cons_iff [->].
+  by rewrite -seq_shift Forall_map => /IH <-.
+Qed.
+
+Lemma s_rule_spec bound x phi psi a N :
+  type_assignment (Γ_all bound bound) (var x) (arr phi (arr psi (symbol a))) ->
+  normal_form N ->
+  Forall (type_assignment (Γ_all bound bound) N) phi ->
+  (exists r, In r rs /\ (forall i', nth x (Γ_all bound i') [] = s_rule r)) /\
+  exists y, N = var y /\ y < bound /\ (forall i', nth y (Γ_all bound i') [] = s_pos i' y).
+Proof.
+  move=> /type_assignmentE /In_Γ_allE Hx HN Hphi. split.
+  { by case: Hx Hphi => // *; eexists; split; eassumption. }
+  have {}HN : head_form N.
+  { case: HN Hphi; first done.
+    move=> ? ?. move: Hx. 
+    by case=> // > [-> ? ?] _ _ => [| |_] /Forall_cons_iff [/type_assignmentE]. }
+  case: HN Hphi.
+  { move=> y Hy. exists y. split; first done.
+    case: Hx Hy => // > [-> ??] _ _ => [| |_].
+    all: by move=> /Forall_cons_iff [/type_assignmentE] /In_Γ_allE []. }
+  move=> > [].
+  { move=> ??. move: Hx.
+    case=> // > [-> ? ?] _ _ => [| |_].
+    all: move=> /Forall_cons_iff [/type_assignmentE] [?].
+    all: by move=> [/type_assignmentE] /In_Γ_allE []. }
+  move=> > /two_params_rule H??. move: Hx.
+  case=> // > [-> ? ?] _ _ => [| |_].
+  all: move=> /Forall_cons_iff [/type_assignmentE] [?].
+  all: by move=> [/type_assignmentE] [?] [/H] [?] [?] [].
+Qed.
+
+Inductive In_s_rule (t : sty) (a b a' b': nat) : Prop :=
+  | In_s_rule_a_a' : t = arr [isl] (arr [symbol a'] (symbol a)) -> In_s_rule t a b a' b'
+  | In_s_rule_b_b' : t = arr [isr] (arr [symbol b'] (symbol b)) -> In_s_rule t a b a' b'
+  | In_s_rule_id e : t = arr [bullet] (arr [symbol e] (symbol e)) -> In e symbols -> In_s_rule t a b a' b'.
+
+Lemma In_s_rule_spec t a b a' b' :
+  In t (s_rule (a, b, (a', b'))) ->
+  In_s_rule t a b a' b'.
+Proof.
+  move=> /= [|[|/in_map_iff [?] []]].
+  all: by eauto using In_s_rule, esym with nocore.
+Qed.
+
+(*if [a_0 .. a_bound] is inhabited in (Γ_all bound [0 .. bound], then a_0..a_bound rewrites to 1..1 *)
+Lemma soundness_step (bound : nat) (N : tm) (v : list nat) :
+  head_form N ->
+  length v = bound + 1 ->
+  Forall (fun i => type_assignment (Γ_all bound i) N (symbol (nth i v 0))) (seq 0 (bound + 1)) ->
+  multi_step rs v (repeat 1 (bound + 1)).
+Proof.
+  elim /(measure_rect tm_size): N v.
+  move=> N IH v H0N Hv /[dup] H'v.
+  rewrite seq_app /= => /Forall_app [_] /Forall_cons_iff [+ _].
+  case: H0N IH H'v.
+  { move=> ?? H /type_assignmentE /In_Γ_allE [] // ? Hx.
+    rewrite (Forall_nth_const v); rewrite Hv; last by apply: rt_refl.
+    apply: Forall_impl H => ? /type_assignmentE.
+    rewrite Hx. by case; case. }
+  move=> ? N1 [].
+  { by move=> ???? /type_assignmentE [?] [/type_assignmentE] /In_Γ_allE []. }
+  move=> ? N2 /two_params_rule H HN2 HN1 IH IH'.
+  move=> /type_assignmentE [?] [/type_assignmentE] [?] [/[dup] H' /H{H}].
+  move=> [?] [?] [? _]. subst.
+  move: (H') HN2 => /s_rule_spec /[apply] /[apply].
+  move=> [[[[a0 b0][a1 b1]]]] [Hr] Hx [y] [?] [H1y H2y] H'N1. subst.
+  have Ha0 : nth_error v y = Some a0.
+  { have : In y (seq 0 (bound + 1)) by apply /in_seq; lia.
+    move: IH' => /Forall_forall /[apply].
+    move=> /type_assignmentE [?] [/type_assignmentE] [phi] [/type_assignmentE].
+    rewrite Hx. case: phi => [|? ?]. { by move=> /In_s_rule_spec []. }
+    move=> H'' /Forall_cons_iff [/type_assignmentE].
+    rewrite H2y /s_pos Nat.eqb_refl. case; last done.
+    move=> ?. subst. move: H'' => /In_s_rule_spec [] //.
+    move=> [?? <-] *. apply: nth_error_nth'. lia. }
+  have Hb0 : nth_error v (S y) = Some b0.
+  { have : In (S y) (seq 0 (bound + 1)) by apply /in_seq; lia.
+    move: IH' => /Forall_forall /[apply].
+    move=> /type_assignmentE [?] [/type_assignmentE] [phi] [/type_assignmentE].
+    rewrite Hx. case: phi => [|? ?]. { by move=> /In_s_rule_spec []. }
+    move=> H'' /Forall_cons_iff [/type_assignmentE].
+    rewrite H2y /s_pos Nat.eqb_refl.
+    have /Nat.eqb_neq -> : S y <> y by lia.
+    case; last done.
+    move=> ?. subst. move: H'' => /In_s_rule_spec [] //.
+    move=> [?? <-] *. apply: nth_error_nth'. lia. }
+  move: Hr Ha0 Hb0 => /step_spec /[apply] /[apply] ?.
+  apply: rt_trans. { apply: rt_step. eassumption. }
+  apply: (IH N1).
+  - move=> /=. lia.
+  - move: H' H'N1 => /type_assignmentE /In_Γ_allE [] // > [? -> ?] _ _ => [| |_].
+    all: move=> /Forall_cons_iff [/nf_hf_atom + _].
+    all: by apply.
+  - by rewrite map_length seq_length.
+  - apply /Forall_forall => i /[dup] /in_seq [_ ?].
+    move: IH' => /Forall_forall /[apply].
+    move=> /type_assignmentE [?] [/type_assignmentE] [phi] [/type_assignmentE].
+    rewrite Hx. case: phi => [|? ?]. { by move=> /In_s_rule_spec []. }
+    move=> H'x /Forall_cons_iff [/type_assignmentE].
+    rewrite H2y /s_pos.
+    case E1iy: (Nat.eqb i y).
+    { case; last done. move=> ? _. subst.
+      move: H'x => /In_s_rule_spec [] //.
+      move=> [? -> ?] /Forall_cons_iff [+ _]. congr type_assignment. congr symbol.
+      rewrite (map_nth' 0). { by rewrite seq_length Hv. }
+      rewrite seq_nth /= ?E1iy; lia. }
+    case E2iy: (Nat.eqb i (S y)).
+    { case; last done. move=> ? _. subst.
+      move: H'x => /In_s_rule_spec [] //.
+      move=> [? -> ?] /Forall_cons_iff [+ _]. congr type_assignment. congr symbol.
+      rewrite (map_nth' 0). { by rewrite seq_length Hv. }
+      rewrite seq_nth /= ?E1iy ?E2iy; lia. }
+    case; last done. move=> ? _. subst.
+    move: H'x => /In_s_rule_spec [] //.
+    move=> e [? -> ?] ? /Forall_cons_iff [+ _]. congr type_assignment. congr symbol.
+    rewrite (map_nth' 0). { by rewrite seq_length Hv. }
+    rewrite seq_nth /= ?E1iy ?E2iy; lia.
+Qed.
+
+(*if triangle is inhabited in (Γ_init ++ Γ_step rs), then 0..0 rewrites to 1..1*)
+Theorem soundness N :
+  normal_form N ->
+  type_assignment (Γ_init ++ Γ_step) N triangle ->
+  exists (m : nat), multi_step rs (repeat 0 (1+m)) (repeat 1 (1+m)).
+Proof.
+  move=> /nf_hf_atom + /[dup] => /[apply].
+  move=> /soundness_init /[apply] - [N'] [] + [].
+  move=> /(soundness_expand 0) /[apply] /[apply] => /(_ (Forall_nil _)).
+  move=> [bound] [N''] [] /soundness_step H H'.
+  exists bound. move: H'. have -> : 1 + bound = bound + 1 by lia.
+  move=> H'. apply: H. { by rewrite repeat_length. }
+  move: H' => /Forall_map. apply: Forall_impl => i.
+  by rewrite nth_repeat.
 Qed.
