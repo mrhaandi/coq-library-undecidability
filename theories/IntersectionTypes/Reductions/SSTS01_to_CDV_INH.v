@@ -15,16 +15,16 @@ Require Import ssreflect ssrbool ssrfun.
 
 Section Argument.
 
-Definition bullet := atom 0.
-Definition star := atom 1.
+Notation bullet := (atom 0).
+Notation star := (atom 1).
 (*indicates second symbol*)
-Definition hash := atom 2.
+Notation hash := (atom 2).
 (*indicates first symbol*)
-Definition dollar := atom 3.
+Notation dollar := (atom 3).
 (*indicates very first split, used once*)
-Definition triangle := atom 4.
-Definition isl := atom 5.
-Definition isr := atom 6.
+Notation triangle := (atom 4).
+Notation isl := (atom 5).
+Notation isr := (atom 6).
 
 (*encodes elements of the alphabet including 0 and 1*)
 Definition symbol (a : nat) := atom (7 + a).
@@ -34,8 +34,8 @@ Definition s_init : ty :=
 
 Definition s_star : ty := [
   arr [arr [bullet] star] star; 
-  arr [arr [isl] star] hash;
-  arr [arr [isr] hash; arr [bullet] dollar] dollar].
+  arr [arr [isr] star] hash;
+  arr [arr [isl] hash; arr [bullet] dollar] dollar].
 
 Definition s_0 : ty :=
   [arr [symbol 0] star; arr [symbol 0] hash; arr [symbol 1] dollar].
@@ -60,7 +60,7 @@ Definition s_rule (r : rule) : ty :=
       s_id_rules
   end.
 
-Definition s_pos (i j : nat) : ty := if Nat.eqb i j then [isr] else (if Nat.eqb i (S j) then [isl] else [bullet]).
+Definition s_pos (i j : nat) : ty := if Nat.eqb i j then [isl] else (if Nat.eqb i (S j) then [isr] else [bullet]).
 
 (*used for initialization, expansion, and termination*)
 Definition Γ_init : list ty := [s_init; s_star; s_0; s_1].
@@ -83,7 +83,7 @@ Proof.
 Qed.
 
 Lemma map_nth' {A B : Type} {f : A -> B} {l : list A} {d : B} {n : nat} (d' : A) :
-n < length l -> nth n (map f l) d = f (nth n l d').
+  n < length l -> nth n (map f l) d = f (nth n l d').
 Proof.
 elim: l n=> /=; first by lia.
 move=> ?? IH [|n] ?; first done.
@@ -91,13 +91,13 @@ apply: IH. lia.
 Qed.
 
 Inductive Γ_all_spec (bound i x : nat) t : Prop :=
-  | Γ_all_lr_r : t = isr -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i = x -> Γ_all_spec bound i x t
-  | Γ_all_lr_l : t = isl -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i = S x -> Γ_all_spec bound i x t
+  | Γ_all_lr_r : t = isr -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i = S x -> Γ_all_spec bound i x t
+  | Γ_all_lr_l : t = isl -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i = x -> Γ_all_spec bound i x t
   | Γ_all_lr_bullet : t = bullet -> (forall i', nth x (Γ_all bound i') [] = s_pos i' x) -> i <> x -> i <> S x -> Γ_all_spec bound i x t
   | Γ_all_init_init : t = (arr [hash; dollar] triangle) -> (forall i', nth x (Γ_all bound i') [] = s_init) -> Γ_all_spec bound i x t
   | Γ_all_init_star_star : t = (arr [arr [bullet] star] star) -> (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x t
-  | Γ_all_init_star_hash : t = (arr [arr [isl] star] hash) -> (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x t
-  | Γ_all_init_star_dollar : t = (arr [arr [isr] hash; arr [bullet] dollar] dollar) -> (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x t
+  | Γ_all_init_star_hash : t = (arr [arr [isr] star] hash) -> (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x t
+  | Γ_all_init_star_dollar : t = (arr [arr [isl] hash; arr [bullet] dollar] dollar) -> (forall i', nth x (Γ_all bound i') [] = s_star) -> Γ_all_spec bound i x t
   | Γ_all_init_0_star : t = (arr [symbol 0] star) -> (forall i', nth x (Γ_all bound i') [] = s_0) -> Γ_all_spec bound i x t
   | Γ_all_init_0_hash : t = (arr [symbol 0] hash) -> (forall i', nth x (Γ_all bound i') [] = s_0) -> Γ_all_spec bound i x t
   | Γ_all_init_0_dollar : t = (arr [symbol 1] dollar) -> (forall i', nth x (Γ_all bound i') [] = s_0) -> Γ_all_spec bound i x t
@@ -127,9 +127,9 @@ Proof.
       rewrite /Γ_lr (map_nth' 0). { by rewrite seq_length. }
       by rewrite seq_nth. }
     rewrite H'x /s_pos. case Eix: (Nat.eqb i x).
-    { case; last done. move=> ?. move=> /Nat.eqb_eq in Eix. subst. by apply: Γ_all_lr_r. }
+    { case; last done. move=> ?. move=> /Nat.eqb_eq in Eix. subst. by apply: Γ_all_lr_l. }
     case E'ix: (Nat.eqb i (S x)).
-    { case; last done. move=> ?. move=> /Nat.eqb_eq in E'ix. subst. by apply: Γ_all_lr_l. }
+    { case; last done. move=> ?. move=> /Nat.eqb_eq in E'ix. subst. by apply: Γ_all_lr_r. }
     case; last done. move=> <-. move=> /Nat.eqb_neq in Eix. move=> /Nat.eqb_neq in E'ix.
     by apply: Γ_all_lr_bullet. }
   rewrite /Γ_all. move=> /[dup] /(@app_nth2 ty) + /nth_Γ_common.
@@ -287,12 +287,28 @@ Admitted.
 *)
 
 (*
-NEEDS PREDICATE FOR IN GAMMA
+Γ_lr bound 0 = map [eta s_pos 1] (seq 1 bound)
+Γ_lr bound (S _a_) = map [eta s_pos (S (S _a_))] (seq 1 bound)
+Γ_lr bound (S bound) = map [eta s_pos (S (S bound))] (seq 1 bound)
+
+Γ_lr bound (S bound) = map [eta s_pos 0] (seq 1 bound)
 *)
+
+Lemma Γ_lr_bound_shift bound i : 
+  Γ_lr bound i = map (s_pos (S i)) (seq 1 bound).
+Proof. by rewrite -seq_shift map_map. Qed.
+
+Lemma Γ_lr_bound_S bound : Γ_lr bound (S bound) = map (fun=> [bullet]) (seq 0 bound).
+Proof.
+  apply: map_ext_in => j /in_seq ?. rewrite /s_pos.
+  have /Nat.eqb_neq -> : S bound <> j by lia.
+  by have /Nat.eqb_neq -> : S bound <> S j by lia.
+Qed.
+
 (*if stars, hash, dollar is inhabited in (Γ_all rs bound [0 .. 1+bound]), then 0 is inhabited in (Γ_all rs bound [0 .. bound'])*)
 Lemma soundness_expand (bound : nat) (N : tm) :
   head_form N ->
-  Forall (fun Γi => type_assignment Γi N star) (map (Γ_all bound) (seq 0 bound)) ->
+  Forall (fun Γi => type_assignment Γi N star) (map (Γ_all bound) (seq 1 bound)) ->
   type_assignment (Γ_all bound 0) N hash ->
   type_assignment (Γ_all bound (1+bound)) N dollar ->
   exists bound' N',
@@ -316,6 +332,31 @@ Proof.
     move=> /type_assignmentE [?] [/type_assignmentE].
     rewrite Hx. case; [done|case;[done|case;[|done]]].
     move=> [<-] /Forall_cons_iff [/type_assignmentE H2N'] /Forall_cons_iff [/type_assignmentE H3N' _].
-    have /= := IH N' _ (S bound). case.
-    TODO
-
+    apply: (IH N' _ (S bound)).
+    + move=> /=. lia.
+    + by apply: nf_hf_atom; eassumption.
+    + move=> /=. constructor.
+      { move: H1N'. by rewrite /Γ_all /= -seq_shift map_map. }
+      move: IH'. rewrite -!seq_shift !map_map.
+      move=> /Forall_map IH'. apply /Forall_map. apply: Forall_impl IH'.
+      move=> ? /type_assignmentE [?] [/type_assignmentE].
+      rewrite Hx. case; [|case;[done|by case]].
+      move=> [<-] /Forall_cons_iff [/type_assignmentE] + _.
+      by rewrite /Γ_all /= -seq_shift map_map.
+    + move: H2N'. congr type_assignment.
+      rewrite /Γ_all /=. congr cons. congr List.app.
+      rewrite -seq_shift map_map. apply: map_ext_in => j /in_seq ?. rewrite /s_pos.
+      have /Nat.eqb_neq -> : S bound <> j by lia.
+      by have /Nat.eqb_neq -> : S bound <> S j by lia.
+    + move: H3N'. by rewrite /Γ_all /= -seq_shift map_map.
+  - move=> [->] Hx /Forall_cons_iff [? _] /type_assignmentE [?] [/type_assignmentE].
+    rewrite Hx. case; [done|case;[done|case;[|done]]].
+    move=> [<-] /Forall_cons_iff [? _].
+    exists bound, N. split. { by apply: nf_hf_atom; eassumption. }
+    move=> /=. constructor; [done|].
+    apply /Forall_forall => ? /[dup] /in_map_iff [?] [<-] ?.
+    move: IH' => /Forall_forall /[apply].
+    move=> /type_assignmentE [?] [/type_assignmentE].
+    rewrite Hx. case; [|case;[done|by case]].
+    by move=> [<-] /Forall_cons_iff [].
+Qed.
