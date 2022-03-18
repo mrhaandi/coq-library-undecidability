@@ -522,3 +522,59 @@ Proof.
   move: H' => /Forall_map. apply: Forall_impl => i.
   by rewrite nth_repeat.
 Qed.
+
+(* COMPLETENESS *)
+
+(*hash, dollar is inhabited in Γ_all rs 0 [0, 1], then triangle is inhabited in (Γ_init ++ Γ_step rs)*)
+Lemma completeness_init N :
+  head_form N ->
+  type_assignment (Γ_all 0 0) N hash ->
+  type_assignment (Γ_all 0 1) N dollar ->
+  exists N', head_form N' /\ type_assignment (Γ_init ++ Γ_step) N' triangle.
+Proof.
+  move=> ???.
+  exists (app (var 0) N). split. { by do ? constructor. }
+  apply: type_assignment_app.
+  - constructor. by left.
+  - by do ? constructor.
+Qed.
+
+Lemma In_Γ_all_skip_lr t bound n i :
+  In t (nth n ((Γ_init ++ Γ_step)) []) ->
+  In t (nth (bound + n) (Γ_all bound i) []).
+Proof.
+  rewrite /Γ_all /Γ_lr [nth (bound + n) _ _](@app_nth2 ty) map_length seq_length. { lia. }
+  congr In. congr nth. lia.
+Qed.
+
+(*if stars, hash, dollar is inhabited in Γ_all rs bound [0..bound-1, bound, bound+1], then hash, dollar is inhabited in Γ_all rs 0 [0, 1]*)
+Lemma completeness_expand bound N :
+  head_form N ->
+  Forall (fun (i : nat) => type_assignment (Γ_all bound i) N star) (seq 1 bound) ->
+  type_assignment (Γ_all bound 0) N hash ->
+  type_assignment (Γ_all bound (1 + bound)) N dollar ->
+  exists N', 
+    head_form N' /\
+    type_assignment (Γ_all 0 0) N' hash /\ 
+    type_assignment (Γ_all 0 1) N' dollar.
+Proof.
+  elim: bound N. { move=> *. eexists. by split; [eassumption|]. }
+  move=> bound IH N HN H1N H2N H3N.
+  apply: (IH (app (var (bound + 1)) (lam N))).
+  - by eauto using head_form, normal_form with nocore.
+  - move: H1N => /= /Forall_cons_iff [_].
+    rewrite -!seq_shift !map_map => /Forall_map H'N.
+    apply /Forall_map. apply: Forall_impl H'N => ? H'N.
+    apply: type_assignment_app.
+    + constructor. apply: In_Γ_all_skip_lr. by left.
+    + do ? constructor. move: H'N. by rewrite /Γ_all /= -seq_shift map_map.
+  - apply: type_assignment_app.
+    + constructor. apply: In_Γ_all_skip_lr. right. by left.
+    + do ? constructor. move: H1N => /Forall_cons_iff [+ _].
+      by rewrite /Γ_all /= -seq_shift map_map.
+  - apply: type_assignment_app.
+    + constructor. apply: In_Γ_all_skip_lr. right. right. by left.
+    + do ? constructor.
+      * move: H2N. by rewrite /Γ_all /= -seq_shift map_map Γ_lr_bound_S.
+      * move: H3N. by rewrite /Γ_all /= -seq_shift map_map.
+Qed.
