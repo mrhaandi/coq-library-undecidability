@@ -20,6 +20,14 @@ Proof.
   move=> ? ? IH /=. by rewrite -seq_shift map_map IH.
 Qed.
 
+(* transforms a goal (A -> B) -> C into goals A and B -> C *)
+Lemma unnest : forall (A B C : Type), A -> (B -> C) -> (A -> B) -> C.
+Proof. auto. Qed.
+
+Lemma Forall_In_impl {X : Type} {P Q : X -> Prop} {l : list X} :
+  (forall x, In x l -> P x -> Q x) -> Forall P l -> Forall Q l.
+Proof. move=> ? /Forall_forall ?. apply /Forall_forall. by auto with nocore. Qed.
+
 Lemma step_spec (rs : Ssts) a b a' b' i v : In ((a, b), (a', b')) rs ->
   nth_error v i = Some a -> nth_error v (S i) = Some b ->
   step rs v (map (fun j => if Nat.eqb j i then a' else if Nat.eqb j (S i) then b' else nth j v 0) (seq 0 (length v))).
@@ -33,6 +41,9 @@ Proof.
   move: (map _ _) => ? [] > /step_intro H'.
   by apply: (H' (_ :: _) _).
 Qed.
+
+Lemma step_length_eq (rs : Ssts) v w : step rs v w -> length v = length w.
+Proof. case => > _. by rewrite !app_length. Qed.
 
 Section Argument.
 
@@ -530,7 +541,7 @@ Lemma completeness_init N :
   head_form N ->
   type_assignment (Γ_all 0 0) N hash ->
   type_assignment (Γ_all 0 1) N dollar ->
-  exists N', head_form N' /\ type_assignment (Γ_init ++ Γ_step) N' triangle.
+  exists N', normal_form N' /\ type_assignment (Γ_init ++ Γ_step) N' triangle.
 Proof.
   move=> ???.
   exists (app (var 0) N). split. { by do ? constructor. }
@@ -578,3 +589,165 @@ Proof.
       * move: H2N. by rewrite /Γ_all /= -seq_shift map_map Γ_lr_bound_S.
       * move: H3N. by rewrite /Γ_all /= -seq_shift map_map.
 Qed.
+
+Lemma completeness_0 bound N :
+  head_form N ->
+  Forall (fun (i : nat) => type_assignment (Γ_all bound i) N (symbol 0)) (seq 0 (S bound)) ->
+  type_assignment (Γ_all bound (1 + bound)) N (symbol 1) ->
+  exists N', 
+    head_form N' /\
+    Forall (fun (i : nat) => type_assignment (Γ_all bound i) N' star) (seq 1 bound) /\
+    type_assignment (Γ_all bound 0) N' hash /\
+    type_assignment (Γ_all bound (1 + bound)) N' dollar.
+Proof.
+  move=> ? /= /Forall_cons_iff [H1N H2N] H3N.
+  exists (app (var (bound + 2)) N). do ? split.
+  - by eauto using head_form, normal_form with nocore.
+  - apply: Forall_impl H2N => ? ?. apply: type_assignment_app.
+    + constructor. apply: In_Γ_all_skip_lr. by left.
+    + by do ? constructor.
+  - apply: type_assignment_app.
+    + constructor. apply: In_Γ_all_skip_lr. right. by left.
+    + by do ? constructor.
+  - apply: type_assignment_app.
+    + constructor. apply: In_Γ_all_skip_lr. right. right. by left.
+    + by do ? constructor.
+Qed.
+
+Lemma In_s_id_rulesI c a b a' b' :
+  In c symbols -> In (arr [bullet] (arr [symbol c] (symbol c))) (s_rule (a, b, (a', b'))).
+Proof. move=> ?. do 2 right. apply /in_map_iff. by exists c. Qed.
+
+Lemma nth_Γ_lr i j bound : j < bound -> nth j (Γ_all bound i) [] = s_pos i j.
+Proof.
+  move=> ?. rewrite /Γ_all /Γ_lr (@app_nth1 ty). { by rewrite map_length seq_length. }
+  rewrite (map_nth' 0). { by rewrite seq_length. }
+  by rewrite seq_nth.
+Qed.
+
+Lemma completeness_step (bound : nat) (N : tm) (v w : list nat) :
+  step rs v w ->
+  (forall i, In (nth i v 0) symbols) ->
+  head_form N ->
+  length v = bound + 1 ->
+  type_assignment (Γ_all bound (1 + bound)) N (symbol 1) ->
+  Forall (fun i => type_assignment (Γ_all bound i) N (symbol (nth i w 0))) (seq 0 (bound + 1)) ->
+  exists N',
+    head_form N' /\
+    type_assignment (Γ_all bound (1 + bound)) N' (symbol 1) /\
+    Forall (fun i => type_assignment (Γ_all bound i) N' (symbol (nth i v 0))) (seq 0 (bound + 1)).  
+Proof.
+  case=> u1 u2 a0 b0 a1 b1. rewrite !app_length /= => + ??? H1N H2N.
+  move=> /(@In_split rule) [rs1] [rs2] Hrs.
+  have ? : length u1 < bound by lia.
+  pose x := bound + (length Γ_init + length rs1).
+  have Hx : forall i, nth x (Γ_all bound i) [] = s_rule ((a0, b0), (a1, b1)).
+  { move=> i. rewrite /x /Γ_all /Γ_step Hrs map_app (@app_nth2 ty) map_length seq_length. { lia. }
+    have -> /= : forall n, bound + n - bound = n by lia.
+    by rewrite (@app_nth2 ty) map_length ?Nat.sub_diag. }
+  exists (app (app (var x) (var (length u1))) N). do ? split.
+  - by eauto using head_form, normal_form with nocore.
+  - apply: type_assignment_app; [apply: type_assignment_app|].
+    + constructor. rewrite Hx. apply: In_s_id_rulesI. apply /in_app_iff. do 2 right. by left.
+    + do ? constructor. rewrite nth_Γ_lr. { done. }
+      rewrite /s_pos.
+      have /Nat.eqb_neq -> : S bound <> 0 + length u1 by lia.
+      have /Nat.eqb_neq -> : S bound <> S (0 + length u1) by lia.
+      by left.
+    + by do ? constructor.
+  - apply /Forall_forall => i /[dup] /in_seq [_ ?].
+    move: H2N => /Forall_forall /[apply].
+    have [Hi|[Hi|Hi]] : (i < length u1 \/ i >= length u1 + 2) \/ i = length u1 \/ i = S (length u1) by lia.
+    + move=> H'N. apply: type_assignment_app; [apply: type_assignment_app|].
+      * constructor. rewrite Hx. by apply: In_s_id_rulesI.
+      * do ? constructor. rewrite nth_Γ_lr. { done. }
+        rewrite /s_pos.
+        have /Nat.eqb_neq -> : i <> length u1 by lia.
+        have /Nat.eqb_neq -> : i <> S (length u1) by lia.
+        by left.
+      * do ? constructor. move: H'N. congr type_assignment. congr symbol.
+        case: Hi => ?. { by do 2 (rewrite (@app_nth1 nat); first done). }
+        do 2 (rewrite (@app_nth2 nat); first lia).
+        by have ->: i - length u1 = S (S (i - length u1 - 2)) by lia.
+    + rewrite Hi (@app_nth2 nat). { done. }
+      rewrite (@app_nth2 nat) ?Nat.sub_diag. { done. }
+      move=> /= H'N. apply: type_assignment_app; [apply: type_assignment_app|].
+      * constructor. rewrite Hx. by left.
+      * do ? constructor. rewrite nth_Γ_lr. { done. }
+        rewrite /s_pos Nat.eqb_refl. by left.
+      * by do ? constructor.
+    + rewrite Hi (@app_nth2 nat). { lia. }
+      rewrite (@app_nth2 nat). { lia. }
+      have -> : S (length u1) - length u1 = 1 by lia.
+      move=> /= H'N. apply: type_assignment_app; [apply: type_assignment_app|].
+      * constructor. rewrite Hx. right. by left.
+      * do ? constructor. rewrite nth_Γ_lr. { done. }
+        rewrite /s_pos Nat.eqb_refl.
+        have /Nat.eqb_neq -> : S (length u1) <> length u1 by lia.
+        by left.
+      * by do ? constructor.
+Qed.
+
+Lemma step_symbols v w :
+  step rs v w ->
+  (forall i : nat, In (nth i v 0) symbols) ->
+  (forall i : nat, In (nth i w 0) symbols).
+Proof.
+  case=> u1 u2 > Hr H i. move: (H i).
+  have [Hi|[->|[->|Hi]]] : i < length u1 \/ i = length u1 \/ i = S (length u1) \/ i >= length u1 + 2 by lia.
+  - by rewrite !(@app_nth1 nat).
+  - move=> _. rewrite (@app_nth2 nat) ?Nat.sub_diag. { done. }
+    apply /in_app_iff. left. apply /in_flat_map.
+    eexists. split; [eassumption|].
+    move=> /=. tauto.
+  - move=> _. rewrite (@app_nth2 nat). { lia. }
+    have -> : S (length u1) - length u1 = 1 by lia.
+    apply /in_app_iff. left. apply /in_flat_map.
+    eexists. split; [eassumption|].
+    move=> /=. tauto.
+  - rewrite (@app_nth2 nat). { lia. }
+    rewrite (@app_nth2 nat). { lia. }
+    by have -> : i - length u1 = S (S (i - length u1 - 2)) by lia.
+Qed.
+
+Lemma completeness_star (bound : nat) (N : tm) (v : list nat) :
+  multi_step rs v (repeat 1 (1+bound)) ->
+  (forall i, In (nth i v 0) symbols) ->
+  head_form N ->
+  length v = bound + 1 ->
+  type_assignment (Γ_all bound (1 + bound)) N (symbol 1) ->
+  Forall (fun i => type_assignment (Γ_all bound i) N (symbol 1)) (seq 0 (bound + 1)) ->
+  exists N',
+    head_form N' /\
+    type_assignment (Γ_all bound (1 + bound)) N' (symbol 1) /\
+    Forall (fun i => type_assignment (Γ_all bound i) N' (symbol (nth i v 0))) (seq 0 (bound + 1)).  
+Proof.
+  move=> /clos_rt_rt1n_iff. move E: (repeat 1 (1+bound)) => w Hvw.
+  elim: Hvw E N; clear v w.
+  { move=> ? <- N ??? HN. exists N. split; [done|split;[done|]].
+    apply: Forall_In_impl H => i /in_seq ?. congr type_assignment. congr symbol.
+    rewrite (nth_indep _ 0 1). { rewrite repeat_length. lia. }
+    by rewrite nth_repeat. }
+  move=> v u w /[dup] /step_length_eq Hvu /[dup] /step_symbols H'vu.
+  move=> /completeness_step H _ /[apply] + N /[dup] Hv /H'vu ++ /[dup] H'v.
+  rewrite Hvu. do 5 move=> /[apply]. move=> [N'] [?] [? ?]. by apply: H; eassumption.
+Qed.
+
+Lemma completeness (m : nat) :
+  multi_step rs (repeat 0 (1+m)) (repeat 1 (1+m)) ->
+  exists N, normal_form N /\ type_assignment (Γ_init ++ Γ_step) N triangle.
+Proof.
+  move=> /completeness_star => /(_ (var (m + 3))).
+  apply: unnest. { move=> ?. rewrite nth_repeat. apply /in_app_iff. right. by left. }
+  apply: unnest. { by constructor. }
+  apply: unnest. { rewrite repeat_length. lia. }
+  apply: unnest. { constructor. apply: In_Γ_all_skip_lr. by left. }
+  apply: unnest. { apply /Forall_forall => ??. constructor. apply: In_Γ_all_skip_lr. by left. }
+  move=> [N'] [+] [+] HN' => /completeness_0 /[apply].
+  apply: unnest. { move: HN'. have -> : m + 1 = S m by lia. apply: Forall_impl => ?. by rewrite nth_repeat. }
+  move=> [N''] [+] [+] [+] => /completeness_expand /[apply] /[apply] /[apply].
+  move=> [N'''] [?] [?] ?. by apply: completeness_init; eassumption.
+Qed.
+
+Print Assumptions completeness.
+Print Assumptions soundness.
