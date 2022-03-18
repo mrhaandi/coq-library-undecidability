@@ -2,7 +2,7 @@
 reduction from SSTS01 to intersection type inhabitation
 *)
 
-Require Import Undecidability.IntersectionTypes.CDV.
+Require Import Undecidability.IntersectionTypes.CDV Undecidability.IntersectionTypes.Util.type_assignment_facts.
 
 Require Import Undecidability.StringRewriting.SSTS.
 
@@ -177,64 +177,6 @@ Proof.
   move=> /in_map_iff [?] [<-]. by eauto using Γ_all_spec, erefl with nocore.
 Qed.
 
-(*head form : x M1 .. Mn where x is free of bound*)
-Inductive normal_form : tm -> Prop :=
-  | normal_head : forall M, head_form M -> normal_form M
-  | normal_abs : forall M, normal_form M -> normal_form (lam M)
-with head_form : tm -> Prop :=
-  | head_var : forall x, head_form (var x)
-  | head_app : forall M N, head_form M -> normal_form N -> head_form (app M N).
-
-Lemma type_assignmentE Gamma M t : type_assignment Gamma M t ->
-  match M with
-  | var x => In t (nth x Gamma nil)
-  | lam M' => 
-    match t with
-    | atom _ => False
-    | arr phi' t' => type_assignment (phi' :: Gamma) M' t'
-    end
-  | app M' N' => exists phi',
-      type_assignment Gamma M' (arr phi' t) /\ Forall (type_assignment Gamma N') phi'
-  end.
-Proof. by case=> *; do ? eexists; eassumption. Qed.
-
-(*
-Lemma type_assignmentE' Gamma M t : type_assignment Gamma M t ->
-  match M with
-  | var x => In t (nth x Gamma nil)
-  | lam M' => 
-      match t with
-      | atom _ => False
-      | arr phi' t' => type_assignment (phi' :: Gamma) M' t'
-      end
-  | app M' N' => exists phi',
-      type_assignment Gamma M' (arr phi' t) /\ Forall (type_assignment Gamma N') phi'
-  end.
-Proof. by case=> *; do ? eexists; eassumption. Qed.
-*)
-(*
-Lemma In_nthE t x (Gamma : list ty) :
-  In t (nth x Gamma []) ->
-  exists phi, In phi Gamma /\ In t phi.
-Proof.
-  move=> /[dup] /In_nth_In *. eexists. by split; eassumption. 
-Qed.
-
-Lemma InΓ_stepE t x :
-  In t (nth x Γ_step []) ->
-  exists r, In t (s_rule r) /\ In r rs.
-Proof. 
-  move=> /In_nthE [?] [/in_map_iff] [r] [<-] *. by exists r. 
-Qed.
-
-Lemma InΓ_lrE t x bound i :
-  In t (nth x (Γ_lr bound i) []) ->
-  exists j, In t (s_pos i j) /\ j < bound.
-Proof.
-  move=> /In_nthE [?] [/in_map_iff] [j] [<-] /in_seq [? ?] ?. by exists j.
-Qed.
-*)
-
 (*only s_rule can be used deriving a type with two parameters for a normal form*)
 Lemma two_params_rule (bound i: nat) N (phi psi : ty) (s : sty) :
   head_form N ->
@@ -276,12 +218,7 @@ Proof.
   apply: nf_hf_atom; by eassumption.
 Qed.
 
-Fixpoint tm_size (M : tm) :=
-  match M with
-  | var _ => 1
-  | app M' N' => 1 + tm_size M' + tm_size N'
-  | lam M' => 1 + tm_size M'
-  end.
+
 
 (* induction/recursion principle wrt. a decreasing measure f *)
 (* example: elim /(measure_rect length) : l. *)
@@ -291,40 +228,6 @@ Proof.
   exact: (well_founded_induction_type (Wf_nat.well_founded_lt_compat X f _ (fun _ _ => id)) P).
 Qed.
 
-(*
-(* TODO later extend to necessary types *)
-Lemma hash_spec phi x bound i :
-  In (arr phi hash) (nth x (Γ_all bound i) []) ->
-  nth x (Γ_all bound i) [] = s_0 \/ nth x (Γ_all bound i) [] = s_star.
-Proof.
-  move=> /[dup] /In_nth_In. move: (nth x _ _) => psi.
-  move=> /in_app_iff [].
-  { move=> /in_map_iff [?] [<-] _. rewrite /s_pos.
-    do 2 (case: (Nat.eqb _ _); [by case|]). by case. }
-  move=> /in_app_iff [] /=; first last.
-  { move=> /in_map_iff [[[? ?][? ?]]] [<- _] /=.
-    do 4 (case; [done|]).
-    by move=> /in_map_iff [?] []. }
-  intuition subst; firstorder done.
-Qed.
-*)
-
-(*
-Lemma In_atom_Gamma a x bound i : In (atom a) (nth x (Γ_all bound i) []) ->
-  atom a = symbol 1 \/ atom a = isl \/ atom a = isr \/ atom a = bullet.
-Proof.
-  move=> /In_nthE [?] [/in_app_iff] [].
-  { move=> /in_map_iff [?] [<-] _. rewrite /s_pos.
-Admitted.
-*)
-
-(*
-Γ_lr bound 0 = map [eta s_pos 1] (seq 1 bound)
-Γ_lr bound (S _a_) = map [eta s_pos (S (S _a_))] (seq 1 bound)
-Γ_lr bound (S bound) = map [eta s_pos (S (S bound))] (seq 1 bound)
-
-Γ_lr bound (S bound) = map [eta s_pos 0] (seq 1 bound)
-*)
 
 Lemma Γ_lr_bound_shift bound i : 
   Γ_lr bound i = map (s_pos (S i)) (seq 1 bound).

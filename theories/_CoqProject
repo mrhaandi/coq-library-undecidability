@@ -771,3 +771,4 @@ TM/KOSBTM/KOSBTM.v
 Synthetic/Models_Equivalent.v
 
 IntersectionTypes/CDV.v
+IntersectionTypes/Util/type_assignment_facts.v
