@@ -249,17 +249,12 @@ Proof.
   by move=> ? [] *; [|eexists|].
 Qed.
 
-Lemma head_red_sn M N : head_red M N -> sn M -> sn N.
-Proof.
-  elim.
-  { admit. }
+
 
 (* is this wrong? M = I , N = (lam I) O
    NO, O is diallowed by head_red *)
 Lemma head_red_sn M N : sn M -> head_red M N -> sn N.
 Proof.
-
-
   elim=> {}M _ IH HMN. constructor=> N' HNN'.
   case: HNN' HMN IH.
   - admit.
