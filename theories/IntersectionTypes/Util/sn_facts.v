@@ -8,17 +8,6 @@ Require Import ssreflect ssrbool ssrfun.
 
 Set Default Proof Using "Type".
 
-(*
-Lemma stepE M N : step M N ->
-  match M with
-  | app (app M1 M2) M3 => exists M', N = app M' M3 /\ step (app M1 M2) M'
-  | app (lam M1) M2 => N = (subst (scons M2 var) M1)
-  | lam (M1) => exists M', N = lam M' /\ step M1 M'
-  | _ => False
-  end.
-Proof. by case=> *; do ? eexists. Qed.
-*)
-
 #[local] Notation all P l := (fold_right and True (map P l)).
 
 Definition Arr (P Q : tm -> Prop) (M : tm) := forall N, P N -> Q (app M N).
@@ -100,6 +89,14 @@ Inductive head_sn : tm -> Prop :=
   | head_sn_var x : head_sn (var x)
   | head_sn_app M N : head_sn M -> sn N -> head_sn (app M N).
 
+Lemma head_snE M : head_sn M ->
+  match M with
+  | var _ => True
+  | lam _ => False
+  | app M1 M2 => head_sn M1 /\ sn M2
+  end.
+Proof. by case. Qed.
+
 Inductive head_red : tm -> tm -> Prop :=
   | head_red_lam M N : sn N -> head_red (subst (scons N var) M) (app (lam M) N)
   | head_red_app M M' N : head_red M M' -> sn N -> head_red (app M N) (app M' N).
@@ -108,20 +105,128 @@ Record Saturated (P : tm -> Prop) :=
   { Saturated_sn : forall M, P M -> sn M;
     Saturated_head_sn : forall M, head_sn M -> P M }.
 
+(*
+Lemma stepE M N : step M N ->
+match M with
+| app (app M1 M2) M3 => exists M', N = app M' M3 /\ step (app M1 M2) M'
+| app (lam M1) M2 => N = (subst (scons M2 var) M1)
+| lam (M1) => exists M', N = lam M' /\ step M1 M'
+| _ => False
+end.
+Proof. by case=> *; do ? eexists. Qed.
+*)
+
+Lemma not_step_var x N : step (var x) N -> False.
+Proof. move E: (var x) => M HMN. by case: HMN E. Qed.
+
+Lemma head_sn_step M N : head_sn M -> step M N -> head_sn N.
+Proof.
+  move=> H.
+  elim: H N; clear M. { by move=> ?? /not_step_var. }
+  move=> M1 M2. move E: (app M1 M2) => M HM1 IH HM2 N HMN.
+  case: HMN E.
+  - move=> > [??]. subst. by move=> /head_snE in HM1.
+  - done.
+  - move=> > ? [??]. subst. by constructor; [apply: IH|].
+  - move=> > ? [??]. subst. constructor; [done|].
+    case: HM2. by apply.
+Qed.
+
+Lemma head_sn_sn M : head_sn M -> sn M.
+Proof.
+  elim; clear M.
+  - move=> ?. constructor. by move=> ? /not_step_var.
+  - move=> M N H1M H2M HN.
+    elim: HN; clear N => N IH1N.
+    elim: H2M H1M; clear M => M IH1M IH2M H1M IH2N.
+    constructor=> M2. move E1: (app M N) => M1 HM1M2.
+    case: HM1M2 E1.
+    + move=> > [? ?]. subst. by move=> /head_snE in H1M.
+    + done.
+    + move=> > ? [??]. subst.
+      apply: IH2M; [done|apply: head_sn_step; eassumption|].
+      move=> ? /IH2N []. apply. by apply: stepAppL.
+    + move=> > ? [??]. subst. by apply: IH2N.
+Qed.
+
+Lemma step_lamE M N : step (lam M) N ->
+  exists M', N = lam M' /\ step M M'.
+Proof.
+  move E: (lam M) => M0 H. case: H E => //.
+  move=> > ? [->]. by eexists.
+Qed.
+
+Lemma subst_as_ren M x : subst (scons (var x) var) M = ren (scons x id) M.
+Proof.
+  rewrite ren_as_subst_tm /=. apply: ext_subst_tm. by case.
+Qed.
+
+Lemma step_ren xi M N : step M N -> step (ren xi M) (ren xi N).
+Proof.
+  move=> H. elim: H xi.
+  { move=> > /=.
+    evar (M1 : tm). evar (M2 : tm).
+    have := stepRed M1 M2. congr step.
+    rewrite /M1 /M2 !simpl_tm. apply: ext_subst_tm.
+    by case. }
+  all: by eauto using step with nocore.
+Qed.
+
+Lemma sn_ren xi M : sn (ren xi M) -> sn M.
+Proof.
+  move E: (ren xi M) => M' HM'.
+  elim: HM' xi M E => ? _ IH xi M ?. subst.
+  constructor=> ? /(step_ren xi) /IH. by apply.
+Qed.
+
+Lemma sn_lam M : sn M -> sn (lam M).
+Proof.
+  elim=> {}M _ IH. by constructor=> ? /step_lamE [?] [->] /IH.
+Qed.
+
+Lemma sn_app_var x M : sn (app M (var x)) -> sn M.
+Proof.
+  move E': (app M (var x)) => M' HM'.
+  elim: HM' M x E'.
+  move=> {}M' IH1 IH2 M x ?. subst. constructor.
+  move=> N HMN.
+  case: HMN IH1 IH2.
+  - move=> > IH1 IH2. apply: IH2.
+    + apply: stepAppL. by apply: stepRed.
+    + done.
+  - move=> > ? IH1 IH2.
+    have := IH1 _ (stepRed _ _).
+    rewrite subst_as_ren.
+    move=> /sn_ren [] H. apply: sn_lam. by apply: H.
+  - move=> > ? IH1 IH2. apply: IH2.
+    + apply: stepAppL. apply: stepAppL. eassumption.
+    + done.
+  - move=> > ? IH1 IH2. apply: IH2.
+    + apply: stepAppL. apply: stepAppR. eassumption.
+    + done.
+Qed.
+
 (* looks doable *)
 Lemma Saturated_interp t : positive t -> Saturated (fun M => interp M t).
 Proof.
   elim /(measure_rect sty_size): t. case.
   { move=> x IH _. constructor.
     - done.
-    - move=> M /=. admit. (* easy *) }
+    - move=> M /=. by apply: head_sn_sn. }
   move=> phi t IH /= [H1phi [H2phi Ht]]. constructor=> /=.
   - move=> M. rewrite /Arr => HM.
     have := HM (var 0).
-    apply: unnest. { admit. (* doabl? by IH *) }
+    apply: unnest. 
+    { elim: phi IH {H1phi} H2phi {HM}. { done. }
+      move=> s phi IH IH' /= [Hs Hphi]. split.
+      - have := IH' s _ Hs.
+        apply: unnest. { move=> /=. lia. }
+        move=> /Saturated_head_sn. apply. by constructor.
+      - apply: IH; [|done].
+        move=> s' /= ? /IH'. apply=> /=. lia. }
     have := IH t _ Ht.
     apply: unnest. { rewrite /=. lia. }
-    move=> /Saturated_sn /[apply]. admit. (* doable *)
+    move=> /Saturated_sn /[apply]. by apply: sn_app_var.
   - move=> M HM N.
     move: phi IH H1phi H2phi => [|s phi]; first done.
     move=> IH _ /= [Hs Hphi] [].
@@ -132,7 +237,9 @@ Proof.
     apply: unnest. { rewrite /=. lia. }
     move=> /Saturated_head_sn. apply.
     by constructor.
-Admitted.
+Qed.
+
+Print Assumptions Saturated_interp.
 
 (* this will follow from saturation *)
 Lemma interp_var x t : positive t -> interp (var x) t.
