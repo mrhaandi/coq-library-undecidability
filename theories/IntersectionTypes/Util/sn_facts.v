@@ -69,11 +69,6 @@ Proof.
 Qed.
 *)
 
-(* this will follow from saturation? *)
-Lemma interp_red M N t : interp (subst (scons N var) M) t -> interp (app (lam M) N) t.
-Proof.
-Admitted.
-
 (* no empty intersections *)
 Fixpoint positive (t : sty) :=
   match t with
@@ -97,24 +92,9 @@ Lemma head_snE M : head_sn M ->
   end.
 Proof. by case. Qed.
 
-Inductive head_red : tm -> tm -> Prop :=
-  | head_red_lam M N : sn N -> head_red (subst (scons N var) M) (app (lam M) N)
-  | head_red_app M M' N : head_red M M' -> sn N -> head_red (app M N) (app M' N).
-
 Record Saturated (P : tm -> Prop) :=
   { Saturated_sn : forall M, P M -> sn M;
     Saturated_head_sn : forall M, head_sn M -> P M }.
-
-(*
-Lemma stepE M N : step M N ->
-match M with
-| app (app M1 M2) M3 => exists M', N = app M' M3 /\ step (app M1 M2) M'
-| app (lam M1) M2 => N = (subst (scons M2 var) M1)
-| lam (M1) => exists M', N = lam M' /\ step M1 M'
-| _ => False
-end.
-Proof. by case=> *; do ? eexists. Qed.
-*)
 
 Lemma not_step_var x N : step (var x) N -> False.
 Proof. move E: (var x) => M HMN. by case: HMN E. Qed.
@@ -254,13 +234,73 @@ Proof.
   move=> /Saturated_interp /Saturated_sn. by apply.
 Qed.
 
-Lemma satisI Gamma M t : type_assignment Gamma M t -> satis Gamma M t.
+Inductive head_red : tm -> tm -> Prop :=
+  | head_red_lam M N : sn N -> head_red (subst (scons N var) M) (app (lam M) N)
+  | head_red_app M M' N : head_red M M' -> sn N -> head_red (app M N) (app M' N).
+
+Lemma head_redE M N : head_red M N ->
+  match N with
+  | app (lam M1) M2 => M = subst (scons M2 var) M1 /\ sn M2
+  | app M1 M2 => exists M', M = app M' M2 /\ head_red M' M1 /\ sn M2
+  | _ => False
+  end.
+Proof.
+  elim. { done. }
+  by move=> ? [] *; [|eexists|].
+Qed.
+
+Lemma head_red_sn M N : head_red M N -> sn M -> sn N.
+Proof.
+  elim.
+  { admit. }
+
+(* is this wrong? M = I , N = (lam I) O
+   NO, O is diallowed by head_red *)
+Lemma head_red_sn M N : sn M -> head_red M N -> sn N.
+Proof.
+
+
+  elim=> {}M _ IH HMN. constructor=> N' HNN'.
+  case: HNN' HMN IH.
+  - admit.
+  - by move=> > ? /head_redE.
+  - move=> > [].
+    + move=> > /head_redE [?] [->] [/head_redE] [-> ??].
+
+    + by move=> > /not_step_var.
+    + move=> > ? /head_redE [?] [->] [? ?].
+
+Admitted.
+
+Lemma interp_head_red M N t : positive t -> head_red M N -> interp M t -> interp N t.
+Proof.
+  elim: t M N.
+  { move=> > ? /=.  admit. (* doable *) }
+  move=> phi s IH M N /= [H1phi] [H2phi] Hs HMN. rewrite /Arr.
+  move=> IH' N' Hphi. apply: (IH _ _ Hs).
+  - apply: head_red_app; [eassumption|].
+    move: (phi) H1phi H2phi Hphi => [|? ?]; first done.
+    move=> /= _ [/Saturated_interp] /Saturated_sn + _ [].
+    by move=> /[apply].
+  - by apply: IH'.
+Admitted.
+
+(* this will follow from saturation? *)
+Lemma interp_red M N t : sn N -> interp (subst (scons N var) M) t -> interp (app (lam M) N) t.
+Proof.
+  move=> HN. apply: interp_head_red. by apply: head_red_lam.
+Qed.
+
+(* needs stronger positivity assumption for whole derivation ! *)
+Lemma satisI Gamma M t : Forall (Forall positive) Gamma -> positive t -> type_assignment Gamma M t -> satis Gamma M t.
 Proof.
   elim: M Gamma t.
-  - move=> a > /type_assignmentE H.
+  - move=> a > ?? /type_assignmentE H.
     by move=> sigma /(_ a) /Forall_forall /(_ _ H).
-  - move=> ? IH1 ? IH2 ?? /type_assignmentE [phi] [/IH1] {}IH1 Hphi.
-    move=> sigma Hsigma /=. apply: (IH1 sigma Hsigma).
+  - move=> ? IH1 ? IH2 ???? /type_assignmentE [phi] [/IH1] {}IH1 Hphi.
+    move=> sigma Hsigma /=. apply: (IH1 _ _ sigma Hsigma).
+    { done. }
+    { cbn. }
     apply /Forall_all. rewrite -/interp.
     apply: Forall_impl Hphi => ? /IH2. by apply.
   - move=> ? IH1 ? [?|phi t] /type_assignmentE; first done.

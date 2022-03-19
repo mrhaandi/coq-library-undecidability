@@ -148,6 +148,12 @@ Inductive step : tm -> tm -> Prop :=
 Inductive sn x : Prop :=
   | SNI : (forall y, step x y -> sn y) -> sn x.
 
+Lemma sn_clos_refl_trans M N : clos_refl_trans tm step M N -> sn M -> sn N.
+Proof.
+  move=> /clos_rt_rt1n_iff. elim. { done. }
+  move=> > ??? []. by eauto with nocore.
+Qed.
+
 (* example: elim /(measure_rect length) : l. *)
 Lemma measure_rect {X : Type} (f : X -> nat) (P : X -> Type) : 
 (forall x, (forall y, f y < f x -> P y) -> P x) -> forall (x : X), P x.
