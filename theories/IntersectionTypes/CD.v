@@ -19,7 +19,7 @@ Inductive tm : Type :=
 Inductive type_assignment (Gamma : list ty) : tm -> sty -> Prop :=
   | type_assignment_var x s phi t :
       nth_error Gamma x = Some (s, phi) ->
-      t = s \/ In t phi ->
+      In t (s::phi) ->
       type_assignment Gamma (var x) t
   | type_assignment_arr M s phi t :
       type_assignment ((s, phi) :: Gamma) M t ->

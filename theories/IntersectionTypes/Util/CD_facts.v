@@ -14,7 +14,7 @@ Fixpoint tm_size (M : tm) :=
 
 Inductive type_assignment_var_spec (Gamma : list ty) x t : Prop :=
   | type_assignment_var_spec_intro s phi : 
-      nth_error Gamma x = Some (s, phi) -> t = s \/ In t phi -> type_assignment_var_spec Gamma x t.
+      nth_error Gamma x = Some (s, phi) -> s = t \/ In t phi -> type_assignment_var_spec Gamma x t.
 
 Inductive type_assignment_app_spec (Gamma : list ty) M N t : Prop :=
   | type_assignment_app_spec_intro s phi : 
