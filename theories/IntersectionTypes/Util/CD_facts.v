@@ -163,6 +163,138 @@ Proof.
   exact: (well_founded_induction_type (Wf_nat.well_founded_lt_compat X f _ (fun _ _ => id)) P).
 Qed.
 
+Lemma not_step_var x N : step (var x) N -> False.
+Proof. move E: (var x) => M HMN. by case: HMN E. Qed.
+
+Lemma step_lamE M N : step (lam M) N ->
+  exists M', N = lam M' /\ step M M'.
+Proof.
+  move E: (lam M) => M0 H. case: H E => //.
+  move=> > ? [->]. by eexists.
+Qed.
+
+Lemma subst_as_ren M x : subst (scons (var x) var) M = ren (scons x id) M.
+Proof.
+  rewrite ren_as_subst_tm /=. apply: ext_subst_tm. by case.
+Qed.
+
+Lemma step_ren xi M N : step M N -> step (ren xi M) (ren xi N).
+Proof.
+  move=> H. elim: H xi.
+  { move=> > /=.
+    evar (M1 : tm). evar (M2 : tm).
+    have := stepRed M1 M2. congr step.
+    rewrite /M1 /M2 !simpl_tm. apply: ext_subst_tm.
+    by case. }
+  all: by eauto using step with nocore.
+Qed.
+
+(* mutual induction on head_form, normal_form *)
+Scheme normal_form_ind' := Induction for normal_form Sort Prop
+  with head_form_ind' := Induction for head_form Sort Prop.
+
+Fact normal_form_ren xi M : 
+  normal_form M -> normal_form (ren xi M).
+Proof.
+  move=> H. move: H xi.
+  apply: (normal_form_ind' 
+    (fun M _ => forall xi, normal_form (ren xi M)) 
+    (fun M _ => forall xi, head_form (ren xi M)));
+      by eauto using normal_form, head_form.
+Qed.
+
+Fact normal_form_ren' xi M : 
+  normal_form (ren xi M) -> normal_form M.
+Proof.
+  move E: (ren xi M) => M' H. move: H xi M E.
+  apply: (normal_form_ind' 
+    (fun M' _ => forall xi M, ren xi M = M' -> normal_form M)
+    (fun M' _ => forall xi M, ren xi M = M' -> head_form M)).
+  - by eauto using normal_form, head_form.
+  - move=> > ? IH ? [] //= ? [?]. subst.
+    by eauto using normal_form, head_form.
+  - move=> ?? [] //= ? [?]. subst.
+    by eauto using normal_form, head_form.
+  - move=> > ????? [] //= ?? [??]. subst.
+    by eauto using normal_form, head_form.
+Qed.
+
+
+Lemma step_renE xi M N : step (ren xi M) N -> exists N', N = ren xi N' /\ step M N'.
+Proof.
+  move E: (ren xi M) => M' H. elim: H xi M E.
+  - move=> ??? [] //.
+    move=> [] // ?? /= [<- <-]. eexists.
+    split; first last. { by apply: stepRed. }
+    rewrite !simpl_tm. apply: ext_subst_tm.
+    by case.
+  - move=> > ? IH ? [] //= ? [?]. subst.
+    have [? [? ?]] := IH _ _ erefl. subst.
+    eexists.
+    split; first last. { apply: stepLam. eassumption. }
+    done.
+  - move=> > ? IH ? [] //= ?? [??]. subst.
+    have [? [? ?]] := IH _ _ erefl. subst.
+    eexists.
+    split; first last. { apply: stepAppL. eassumption. }
+    done.
+  - move=> > ? IH ? [] //= ?? [??]. subst.
+    have [? [? ?]] := IH _ _ erefl. subst.
+    eexists.
+    split; first last. { apply: stepAppR. eassumption. }
+    done.
+Qed.
+
+Lemma steps_renE xi M N : clos_refl_trans tm step (ren xi M) N -> exists N', N = ren xi N' /\ clos_refl_trans tm step M N'.
+Proof.
+  move E: (ren xi M) => M' /clos_rt_rt1n_iff H.
+  elim: H xi M E.
+  { move=> > <-. eexists. split;[done|]. by apply: rt_refl. }
+  move=> > +++ > ?. subst. move=> /step_renE [?] [->] ? _.
+  move=> /(_ _ _ erefl) [?] [->] ?.
+  eexists. split; [done|].
+  apply: rt_trans; [apply: rt_step|]; eassumption.
+Qed.
+
+Fixpoint sty_size (t : sty) :=
+  match t with
+  | atom a => 1
+  | arr s phi t => 1 + sty_size s + list_sum (map sty_size phi) + sty_size t
+  end.
+
+Lemma In_sty_size_le s phi :
+  In s phi -> sty_size s <= list_sum (map sty_size phi).
+Proof.
+  elim: phi; first done.
+  move=> ?? IH /= [] => [<-|/IH]; lia.
+Qed.
+
+Lemma sty_ind' (P : sty -> Prop) :
+  (forall x, P (atom x)) ->
+  (forall s phi t, P s -> Forall P phi -> P t -> P (arr s phi t)) ->
+  forall s, P s.
+Proof.
+  move=> IH1 IH2. elim /(measure_rect sty_size). case.
+  - move=> *. apply: IH1.
+  - move=> s phi t IH'. apply: IH2.
+    + apply: IH'=> /=. lia.
+    + elim: phi IH'; first done.
+      move=> s' phi' IH1' IH2'. constructor.
+      * apply: IH2'=> /=. lia.
+      * apply: IH1'=> /= *. apply: IH2'=> /=. lia.
+    + apply: IH'=> /=. lia.
+Qed.
+
+#[local] Notation all P l := (fold_right and True (map P l)).
+
+Lemma Forall_all {X : Type} {P : X -> Prop} l : Forall P l <-> all P l.
+Proof.
+  elim: l. { done. }
+  move=> ?? IH. split.
+  - by move=> /Forall_cons_iff [? /IH].
+  - move=> [? ?]. constructor; first done. by apply /IH.
+Qed.
+
 (*
 
 (* strong normalization property *)
@@ -204,9 +336,3 @@ Proof.
     by apply: rt_step.
 Qed.
 *)
-
-Fixpoint sty_size (t : sty) :=
-  match t with
-  | atom a => 1
-  | arr s phi t => 1 + sty_size s + list_sum (map sty_size phi) + sty_size t
-  end.
