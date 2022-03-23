@@ -45,18 +45,18 @@ Qed.
 Lemma step_length_eq (rs : Ssts) v w : step rs v w -> length v = length w.
 Proof. case => > _. by rewrite !app_length. Qed.
 
-Section Argument.
-
-Notation bullet := (atom 0).
-Notation star := (atom 1).
+#[local] Notation bullet := (atom 0).
+#[local] Notation star := (atom 1).
 (*indicates second symbol*)
-Notation hash := (atom 2).
+#[local] Notation hash := (atom 2).
 (*indicates first symbol*)
-Notation dollar := (atom 3).
+#[local] Notation dollar := (atom 3).
 (*indicates very first split, used once*)
-Notation triangle := (atom 4).
-Notation isl := (atom 5).
-Notation isr := (atom 6).
+#[local] Notation triangle := (atom 4).
+#[local] Notation isl := (atom 5).
+#[local] Notation isr := (atom 6).
+
+Section Argument.
 
 (*encodes elements of the alphabet including 0 and 1*)
 Definition symbol (a : nat) := atom (7 + a).
@@ -680,3 +680,23 @@ Proof.
   move=> [N''] [+] [+] [+] => /completeness_expand /[apply] /[apply] /[apply].
   move=> [N'''] [?] [?] ?. by apply: completeness_init; eassumption.
 Qed.
+
+End Argument.
+
+Require Import Undecidability.Synthetic.Definitions.
+Require Import Undecidability.IntersectionTypes.Util.CD_wn.
+
+(* Reduction from simple semi-Thue system 01 rewriting to intersection type inhabitation *)
+Theorem reduction : SSTS01 ⪯ CD_INH.
+Proof.
+  exists (fun rs => (Γ_init ++ Γ_step rs, triangle)).
+  intros rs. split.
+  - intros [n Hn%completeness].
+    destruct Hn as [N [? HN]].
+    exists N. exact HN.
+  - intros [N HN].
+    destruct (weak_normalization HN) as [N' HN' H'N'].
+    exact (soundness rs N' H'N' (type_preservation HN' HN)).
+Qed.
+
+Print Assumptions reduction.

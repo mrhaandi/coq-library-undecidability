@@ -295,44 +295,41 @@ Proof.
   - move=> [? ?]. constructor; first done. by apply /IH.
 Qed.
 
-(*
-
-(* strong normalization property *)
-Inductive sn x : Prop :=
-  | SNI : (forall y, step x y -> sn y) -> sn x.
-
-Lemma sn_clos_refl_trans M N : clos_refl_trans tm step M N -> sn M -> sn N.
+Lemma type_assignment_subst Gamma Delta sigma t M :
+  type_assignment Gamma M t ->
+  (forall x s phi, nth_error Gamma x = Some (s, phi) -> Forall (type_assignment Delta (sigma x)) (s::phi)) ->
+  type_assignment Delta (subst sigma M) t.
 Proof.
-  move=> /clos_rt_rt1n_iff. elim. { done. }
-  move=> > ??? []. by eauto with nocore.
+  move=> H. elim: H Delta sigma.
+  - by move=> > ++ > IH /= => /IH /Forall_forall /[apply].
+  - move=> > ? IH1 > IH2 /=.
+    constructor. apply: IH1.
+    move=> [|x] > /=.
+    + move=> [<- <-]. apply /Forall_forall=> ??.
+      by econstructor.
+    + move=> /IH2. admit.
+  - move=> > ? IH1 ? IH2 Hphi > IH3 /=.
+    econstructor.
+    + by apply: IH1.
+    + by apply: IH2.
+    + apply: Forall_impl Hphi=> ??. (* need better induction on type derivation? all Forall cases! *)
+Admitted.
+
+Lemma type_preservation_step {Gamma t M N} : step M N -> type_assignment Gamma M t -> type_assignment Gamma N t.
+Proof.
+  move=> H. elim: H Gamma t.
+  - move=> > /type_assignmentE [>] /type_assignmentE *.
+    apply: type_assignment_subst; [eassumption|].
+    move=> [|x].
+    + move=> ?? [<- <-]. by constructor.
+    + move=> ?? /= Hx. apply /Forall_forall=> ? Ht.
+      by econstructor; eassumption.
+  - move=> > ? IH ? [] > /type_assignmentE; by eauto using type_assignment with nocore.
+  - move=> > ? IH > /type_assignmentE []. by eauto using type_assignment with nocore.
+  - move=> > ? IH > /type_assignmentE []. eauto using type_assignment, Forall_impl with nocore.
 Qed.
 
-
-
-Lemma normal_form_spec M : normal_form M \/ exists N, step M N.
+Lemma type_preservation {Gamma t M N} : clos_refl_trans tm step M N -> type_assignment Gamma M t -> type_assignment Gamma N t.
 Proof.
-  elim: M.
-  - move=> ?. left. by auto using normal_form, head_form with nocore.
-  - move=> M []; first last.
-    { move=> [M' ?] ? ?. right. eexists (app M' _). by apply: stepAppL. }
-    case; first last.
-    { move=> *. right. eexists. by apply: stepRed. }
-    move=> {}M HM N []; first last.
-    { move=> [?] ?. right. eexists (app M _). apply: stepAppR. eassumption. }
-    move=> ?. left. by do 2 constructor.
-  - move=> M [].
-    { move=> ?. left. by constructor. }
-    move=> [? ?]. right. eexists. apply: stepLam. eassumption.
+  elim; by eauto using type_preservation_step with nocore.
 Qed.
-
-Lemma sn_nf M : sn M -> exists N, normal_form N /\ clos_refl_trans tm step M N.
-Proof.
-  elim.
-  move=> {}M IH1 IH2.
-  case: (normal_form_spec M).
-  - move=> ?. exists M. split; first done. by apply: rt_refl.
-  - move=> [?] /[dup] ? /IH2 [N] [? ?]. exists N. split; first done.
-    apply: rt_trans; [|eassumption].
-    by apply: rt_step.
-Qed.
-*)

@@ -774,3 +774,4 @@ IntersectionTypes/CDV.v
 IntersectionTypes/CD.v
 IntersectionTypes/Util/type_assignment_facts.v
 IntersectionTypes/Util/CD_facts.v
+IntersectionTypes/Util/CD_wn.v

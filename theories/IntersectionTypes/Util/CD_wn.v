@@ -182,7 +182,7 @@ Qed.
 End Admissible_wn.
 
 (* consequence of fundamental theorem *)
-Lemma weak_normalization Gamma M t : type_assignment Gamma M t -> wn M.
+Lemma weak_normalization {Gamma M t} : type_assignment Gamma M t -> wn M.
 Proof.
   apply: fundamental. by apply: Admissible_wn.Admissible_wn.
 Qed.
