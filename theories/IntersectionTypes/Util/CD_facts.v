@@ -295,25 +295,46 @@ Proof.
   - move=> [? ?]. constructor; first done. by apply /IH.
 Qed.
 
+Lemma type_assignment_ren Gamma Delta xi t M :
+  type_assignment Gamma M t ->
+  (forall x, nth_error Gamma x = nth_error Delta (xi x)) ->
+  type_assignment Delta (ren xi M) t.
+Proof.
+  elim: M Gamma Delta xi t.
+  - move=> > /type_assignmentE [>] /= ++ IH.
+    rewrite IH=> ??. by econstructor; eassumption.
+  - move=> > IH1 > IH2 > /type_assignmentE [>].
+    move=> /IH1 {}IH1 ? Hphi /[dup] /IH1 ? /IH2 {}IH2 /=.
+    econstructor.
+    + eassumption.
+    + by apply: IH2.
+    + by apply: Forall_impl Hphi => ? /IH2.
+  - move=> > IH ??? [] > /type_assignmentE; first done.
+    move=> /IH {}IH H' /=. constructor. apply: IH.
+    by case.
+Qed.
+
 Lemma type_assignment_subst Gamma Delta sigma t M :
   type_assignment Gamma M t ->
   (forall x s phi, nth_error Gamma x = Some (s, phi) -> Forall (type_assignment Delta (sigma x)) (s::phi)) ->
   type_assignment Delta (subst sigma M) t.
 Proof.
-  move=> H. elim: H Delta sigma.
-  - by move=> > ++ > IH /= => /IH /Forall_forall /[apply].
-  - move=> > ? IH1 > IH2 /=.
-    constructor. apply: IH1.
-    move=> [|x] > /=.
-    + move=> [<- <-]. apply /Forall_forall=> ??.
-      by econstructor.
-    + move=> /IH2. admit.
-  - move=> > ? IH1 ? IH2 Hphi > IH3 /=.
+  elim: M Gamma Delta sigma t.
+  - move=> > /type_assignmentE [>] /= ++ IH.
+    move=> /IH /Forall_cons_iff [IH1 /Forall_forall IH2].
+    by move=> [<-|/IH2].
+  - move=> > IH1 > IH2 > /type_assignmentE [>].
+    move=> /IH1 {}IH1 ? Hphi /[dup] /IH1 ? /IH2 {}IH2 /=.
     econstructor.
-    + by apply: IH1.
+    + eassumption.
     + by apply: IH2.
-    + apply: Forall_impl Hphi=> ??. (* need better induction on type derivation? all Forall cases! *)
-Admitted.
+    + by apply: Forall_impl Hphi => ? /IH2.
+  - move=> > IH ??? [] > /type_assignmentE; first done.
+    move=> /IH {}IH H' /=. constructor. apply: IH.
+    move=> [|x] > /=.
+    + move=> [<- <-]. apply /Forall_forall=> ??. by econstructor.
+    + move=> /H'. apply: Forall_impl=> ? /type_assignment_ren. by apply.
+Qed. 
 
 Lemma type_preservation_step {Gamma t M N} : step M N -> type_assignment Gamma M t -> type_assignment Gamma N t.
 Proof.

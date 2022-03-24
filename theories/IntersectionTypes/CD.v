@@ -21,16 +21,17 @@ Inductive type_assignment (Gamma : list ty) : tm -> sty -> Prop :=
       nth_error Gamma x = Some (s, phi) ->
       In t (s::phi) ->
       type_assignment Gamma (var x) t
+  | type_assignment_app M N s phi t :
+    type_assignment Gamma M (arr s phi t) ->
+    type_assignment Gamma N s ->
+    Forall (type_assignment Gamma N) phi ->
+    type_assignment Gamma (app M N) t
   | type_assignment_arr M s phi t :
       type_assignment ((s, phi) :: Gamma) M t ->
-      type_assignment Gamma (lam M) (arr s phi t)
-  | type_assignment_app M N s phi t :
-      type_assignment Gamma M (arr s phi t) ->
-      type_assignment Gamma N s ->
-      Forall (type_assignment Gamma N) phi ->
-      type_assignment Gamma (app M N) t.
+      type_assignment Gamma (lam M) (arr s phi t).
 
-(* Intersection Type Checking *)
+
+(* Intersection Type Type Checking *)
 Definition CD_TC : (list ty) * tm * sty -> Prop :=
   fun '(Gamma, M, t) => type_assignment Gamma M t.
 
