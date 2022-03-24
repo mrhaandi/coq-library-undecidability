@@ -1,3 +1,5 @@
+(* OBSOLETE; REMOVE *)
+
 (*
 reduction from SSTS01 to intersection type inhabitation
 *)

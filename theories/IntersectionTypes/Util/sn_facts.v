@@ -1,3 +1,5 @@
+(* OBSOLETE; REMOVE *)
+
 Require Import Undecidability.IntersectionTypes.CDV Undecidability.IntersectionTypes.Util.type_assignment_facts.
 Require Import Setoid Morphisms.
 Require Import List Lia.

@@ -1,3 +1,5 @@
+(* OBSOLETE; REMOVE *)
+
 Require Import Undecidability.IntersectionTypes.CDV.
 
 Require Import List Relations Lia.
