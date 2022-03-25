@@ -772,7 +772,10 @@ Synthetic/Models_Equivalent.v
 
 IntersectionTypes/CDV.v
 IntersectionTypes/CD.v
-IntersectionTypes/Util/type_assignment_facts.v
+IntersectionTypes/CD_undec.v
 IntersectionTypes/Util/CD_facts.v
 IntersectionTypes/Util/CD_wn.v
 IntersectionTypes/Reductions/SSTS01_to_CD_INH.v
+IntersectionTypes/Reductions/CD_TYP_to_CD_TC.v
+
+CounterMachines/CM2X.v

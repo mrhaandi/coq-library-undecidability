@@ -15,7 +15,8 @@
 Require Import Undecidability.Synthetic.Undecidability.
 
 Require Import Undecidability.IntersectionTypes.CD.
-From Undecidability.IntersectionTypes.Reductions Require SSTS01_to_CD_INH.
+From Undecidability.IntersectionTypes.Reductions Require 
+  SSTS01_to_CD_INH CD_TYP_to_CD_TC.
 
 Require Import Undecidability.StringRewriting.SSTS_undec.
 
@@ -37,4 +38,8 @@ Admitted.
 (* Undecidability of Intersection Type Type Checking *)
 Theorem CD_TC_undec : undecidable CD_TC.
 Proof.
-Admitted.
+  apply (undecidability_from_reducibility CD_TYP_undec).
+  exact CD_TYP_to_CD_TC.reduction.
+Qed.
+
+Check CD_TC_undec.

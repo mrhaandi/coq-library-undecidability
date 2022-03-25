@@ -5,6 +5,13 @@ Import CD (var, app, lam).
 
 Require Import ssreflect ssrbool ssrfun.
 
+Lemma nth_error_seq start len n : n < len -> nth_error (seq start len) n = Some (start+n).
+Proof.
+  elim: len start n. { lia. }
+  move=> len IH start [|n] ?. { congr Some. lia. }
+  rewrite /= IH; [|congr Some]; lia.
+Qed.
+
 Fixpoint tm_size (M : tm) :=
   match M with
   | var _ => 1
@@ -142,7 +149,27 @@ Proof.
     apply: ext_subst_tm. by case.
 Qed.
 
-Definition simpl_tm := (ren_ren_tm, ren_subst_tm, subst_ren_tm, subst_subst_tm, subst_var_tm).
+Lemma ren_id_tm s : ren id s = s.
+Proof. by rewrite ren_as_subst_tm subst_var_tm. Qed.
+
+Definition simpl_tm := (ren_ren_tm, ren_subst_tm, subst_ren_tm, subst_subst_tm, ren_id_tm, subst_var_tm).
+
+Fixpoint forall_fv (P : nat -> Prop) t := 
+  match t with
+  | var x => P x
+  | app s t => forall_fv P s /\ forall_fv P t
+  | lam t => forall_fv (scons True P) t
+  end.
+
+Lemma forall_fv_impl (P Q : nat -> Prop) t : 
+  (forall x, P x -> Q x) -> forall_fv P t -> forall_fv Q t.
+Proof.
+  elim: t P Q => /=.
+  - move=> >. by apply.
+  - move=> ? IH1 ? IH2 > /[dup] /IH1 {}IH1 /IH2 {}IH2. tauto.
+  - move=> > IH > H /=. apply: IH.
+    by case.
+Qed.
 
 Inductive step : tm -> tm -> Prop :=
   | stepRed s t    : step (app (lam s) t) (subst (scons t var) s)
@@ -295,14 +322,34 @@ Proof.
   - move=> [? ?]. constructor; first done. by apply /IH.
 Qed.
 
-Lemma type_assignment_ren Gamma Delta xi t M :
+Lemma type_assignment_ren_fv Gamma Delta xi t M :
   type_assignment Gamma M t ->
-  (forall x, nth_error Gamma x = nth_error Delta (xi x)) ->
+  forall_fv (fun x => forall s phi, nth_error Gamma x = Some (s, phi) -> nth_error Delta (xi x) = Some (s, phi)) M ->
   type_assignment Delta (ren xi M) t.
 Proof.
   elim: M Gamma Delta xi t.
   - move=> > /type_assignmentE [>] /= ++ IH.
-    rewrite IH=> ??. by econstructor; eassumption.
+    move=> /IH ??. by econstructor; eassumption.
+  - move=> > IH1 > IH2 > /type_assignmentE [>].
+    move=> /IH1 {}IH1 ? Hphi /= [] /IH1 ? /IH2 {}IH2 /=.
+    econstructor.
+    + eassumption.
+    + by apply: IH2.
+    + by apply: Forall_impl Hphi => ? /IH2.
+  - move=> > IH ??? [] > /type_assignmentE; first done.
+    move=> /IH {}IH /= H'. constructor. apply: IH.
+    apply: forall_fv_impl H'.
+    by case.
+Qed.
+
+Lemma type_assignment_ren Gamma Delta xi t M :
+  type_assignment Gamma M t ->
+  (forall x s phi, nth_error Gamma x = Some (s, phi) -> nth_error Delta (xi x) = Some (s, phi)) ->
+  type_assignment Delta (ren xi M) t.
+Proof.
+  elim: M Gamma Delta xi t.
+  - move=> > /type_assignmentE [>] /= ++ IH.
+    move=> /IH ??. by econstructor; eassumption.
   - move=> > IH1 > IH2 > /type_assignmentE [>].
     move=> /IH1 {}IH1 ? Hphi /[dup] /IH1 ? /IH2 {}IH2 /=.
     econstructor.

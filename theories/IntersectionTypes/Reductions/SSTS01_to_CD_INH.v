@@ -165,13 +165,6 @@ Proof.
   by rewrite /Γ_lr !map_length !seq_length.
 Qed.
 
-Lemma nth_error_seq start len n : n < len -> nth_error (seq start len) n = Some (start+n).
-Proof.
-  elim: len start n. { lia. }
-  move=> len IH start [|n] ?. { congr Some. lia. }
-  rewrite /= IH; [|congr Some]; lia.
-Qed.
-
 Lemma In_Γ_allE bound i x s phi t :
   nth_error (Γ_all bound i) x = Some (s, phi) ->
   In t (s::phi) ->
