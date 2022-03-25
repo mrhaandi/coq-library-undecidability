@@ -691,5 +691,3 @@ Proof.
     destruct (weak_normalization HN) as [N' HN' H'N'].
     exact (soundness rs N' H'N' (type_preservation HN' HN)).
 Qed.
-
-Print Assumptions reduction.

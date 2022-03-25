@@ -653,6 +653,3 @@ Proof.
   move=> [N''] [+] [+] [+] => /completeness_expand /[apply] /[apply] /[apply].
   move=> [N'''] [?] [?] ?. by apply: completeness_init; eassumption.
 Qed.
-
-Print Assumptions completeness.
-Print Assumptions soundness.

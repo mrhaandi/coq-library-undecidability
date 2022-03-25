@@ -221,8 +221,6 @@ Proof.
     by constructor.
 Qed.
 
-Print Assumptions Saturated_interp.
-
 (* this will follow from saturation *)
 Lemma interp_var x t : positive t -> interp (var x) t.
 Proof.
@@ -328,7 +326,6 @@ Proof.
   by apply: interp_sn.
 Qed.
 
-Print Assumptions normalization.
 
 (* OOOOOOOLD  *)
 
@@ -427,8 +424,6 @@ Proof.
 
 
 
-
-Print Assumptions satisI.
 
 
 
