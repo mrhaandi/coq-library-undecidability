@@ -28,12 +28,15 @@ Definition step (M: Cm2x) (x: Config) : option Config :=
   let '(i, (a, b)) := x in
   match nth_error M i with
   | None => None (* halting configuration *)
-  | Some inc => Some (1+i, (b, 1+a))
-  | Some (dec j) => Some (
-    match a with
-    | 0 => (1+i, (b, 0))
-    | S n => (j, (b, n))
-    end)
+  | Some instr => Some (
+      match instr with
+      | inc => (1+i, (b, 1+a))
+      | dec j =>
+        match a with
+        | 0 => (1+i, (b, 0))
+        | S n => (j, (b, n))
+        end
+      end)
   end.
 
 (* unfold step if the configuration is decomposed *)

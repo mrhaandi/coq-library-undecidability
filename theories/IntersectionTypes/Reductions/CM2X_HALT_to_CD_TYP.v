@@ -140,7 +140,10 @@ Definition W := lam (many_app (var 0) (rev (map (fun '(i, instr) => enc_instr i 
 
 Lemma subst_many_app sigma M Ms : 
   subst sigma (many_app M Ms) = many_app (subst sigma M) (map (subst sigma) Ms).
-Proof. Admitted.
+Proof.
+  elim: Ms M. { done. }
+  by move=> M' Ms + M /= => ->.
+Qed. 
 
 Lemma nth_combine_seq {X: Type} {l: list X} {i x d} :
   nth_error l i = Some x -> nth i (combine (seq 0 (length l)) l) d = (i, x).
@@ -169,6 +172,22 @@ Proof.
     by rewrite (nth_combine_seq Hi) subst_enc_instr.
 Qed.
 
+Lemma W_tm_steps_enc_instr' {i} :
+  nth_error P i = None ->
+  tm_steps (app W (enc_tab i (length P))) HALT.
+Proof.
+  move=> Hi.
+  apply: rt_trans. { apply: rt_step. by apply: stepRed'. }
+  rewrite subst_many_app /=.
+  have ? : length P <= i. { by apply /nth_error_None. }
+  evar (Ms : list tm).
+  have := enc_tab_steps_spec i Ms. subst Ms. congr tm_steps.
+  - congr many_app. congr enc_tab.
+    rewrite map_length rev_length map_length combine_length seq_length. lia.
+  - rewrite map_rev rev_involutive map_map nth_overflow; last done.
+    rewrite map_length combine_length seq_length. lia.
+Qed.
+
 Lemma subst_enc_nat sigma n : subst sigma (enc_nat n) = enc_nat n.
 Proof.
   elim: n sigma. { done. }
@@ -180,7 +199,8 @@ Proof. by rewrite ren_as_subst_tm subst_enc_nat. Qed.
 
 Definition W_norm := (ren_enc_nat, ren_enc_tab, subst_enc_nat, subst_enc_tab).
 
-Lemma W_step i a b i' a' b' : CM2X.step P (i, (a, b)) = Some (i', (a', b')) -> 
+(* sanity check lemma *)
+Lemma W_step_Some i a b i' a' b' : CM2X.step P (i, (a, b)) = Some (i', (a', b')) -> 
   tm_steps 
     (many_app W [enc_tab i (length P); enc_nat a; enc_nat b; W])
     (many_app W [enc_tab i' (length P); enc_nat a'; enc_nat b'; W]).
@@ -227,4 +247,17 @@ Proof.
       apply: rt_trans. { do 0 apply: stepsAppL. apply: rt_step. by apply: stepRed. }
       rewrite /= !W_norm.
       by apply: rt_refl.
+Qed.
+
+(* sanity check lemma *)
+Lemma W_step_None i a b : CM2X.step P (i, (a, b)) = None -> 
+  tm_steps 
+    (many_app W [enc_tab i (length P); enc_nat a; enc_nat b; W])
+    (lam (var 0)).
+Proof.
+  rewrite /CM2X.step.
+  case Ei: (nth_error P i) => [?|] => [|_]; first done.
+  apply: rt_trans.
+  { do 3 apply: stepsAppL. by apply: (W_tm_steps_enc_instr' Ei). }
+  by apply: (steps_many_app_many_lam 0 _ [enc_nat a; enc_nat b; W]).
 Qed.
