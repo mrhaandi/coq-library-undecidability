@@ -12,6 +12,14 @@ Proof.
   rewrite /= IH; [|congr Some]; lia.
 Qed.
 
+Lemma map_nth' {A B : Type} {f : A -> B} {l : list A} {d : B} {n : nat} (d' : A) :
+  n < length l -> nth n (map f l) d = f (nth n l d').
+Proof.
+elim: l n=> /=; first by lia.
+move=> ?? IH [|n] ?; first done.
+apply: IH. lia.
+Qed.
+
 Fixpoint tm_size (M : tm) :=
   match M with
   | var _ => 1
@@ -171,11 +179,33 @@ Proof.
     by case.
 Qed.
 
+Lemma ext_forall_fv_subst_tm sigma1 sigma2 t : forall_fv (fun x=> sigma1 x = sigma2 x) t ->
+  subst sigma1 t = subst sigma2 t.
+Proof.
+  elim: t sigma1 sigma2.
+  - by move=> > /= ?.
+  - by move=> ? IH1 ? IH2 ?? /= [/IH1 -> /IH2 ->].
+  - move=> ? IH > /= Hsigma. congr lam. apply: IH.
+    apply: forall_fv_impl Hsigma.
+    by move=> [|x] /= => [|->].
+Qed.
+
+Lemma ext_forall_fv_ren_tm xi1 xi2 t : forall_fv (fun x=> xi1 x = xi2 x) t -> ren xi1 t = ren xi2 t.
+Proof.
+  move=> H. rewrite !ren_as_subst_tm. apply: ext_forall_fv_subst_tm.
+  by apply: forall_fv_impl H => ? /= ->.
+Qed.
+
 Inductive step : tm -> tm -> Prop :=
   | stepRed s t    : step (app (lam s) t) (subst (scons t var) s)
   | stepLam s s'   : step s s' -> step (lam s) (lam s')
   | stepAppL s s' t : step s s' -> step (app s t) (app s' t)
   | stepAppR s t t' : step t t' -> step (app s t) (app s t').
+
+Notation steps := (clos_refl_trans tm step).
+
+Lemma stepRed' s t u : u = subst (scons t var) s -> step (app (lam s) t) u.
+Proof. move=> ->. by apply: stepRed. Qed.
 
 (* weak normalization property *)
 Inductive wn M : Prop :=
@@ -198,6 +228,22 @@ Lemma step_lamE M N : step (lam M) N ->
 Proof.
   move E: (lam M) => M0 H. case: H E => //.
   move=> > ? [->]. by eexists.
+Qed.
+
+Lemma stepsAppL M M' N : steps M M' -> steps (app M N) (app M' N).
+Proof.
+  elim.
+  - move=> > ?. apply: rt_step. by apply: stepAppL.
+  - move=> >. by apply: rt_refl.
+  - move=> *. by apply: rt_trans; eassumption.
+Qed.
+
+Lemma stepsAppR M M' N : steps M M' -> steps (app N M) (app N M').
+Proof.
+  elim.
+  - move=> > ?. apply: rt_step. by apply: stepAppR.
+  - move=> >. by apply: rt_refl.
+  - move=> *. by apply: rt_trans; eassumption.
 Qed.
 
 Lemma subst_as_ren M x : subst (scons (var x) var) M = ren (scons x id) M.

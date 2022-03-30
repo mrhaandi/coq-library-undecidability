@@ -122,23 +122,6 @@ Definition Γ_lr (bound : nat) (i : nat) : list ty := map (fun j => s_pos i j) (
 Definition Γ_all (bound i : nat) :=
   Γ_lr bound i ++ (Γ_init ++ Γ_step).
 
-(*
-Lemma In_nth_In t x (Gamma : list ty) :
-  In t (nth x Gamma []) ->
-  In (nth x Gamma []) Gamma.
-Proof.
-  elim: Gamma x. { by case. }
-  by move=> > IH [|x] => [|/IH] ?; [left|right].
-Qed.
-*)
-Lemma map_nth' {A B : Type} {f : A -> B} {l : list A} {d : B} {n : nat} (d' : A) :
-  n < length l -> nth n (map f l) d = f (nth n l d').
-Proof.
-elim: l n=> /=; first by lia.
-move=> ?? IH [|n] ?; first done.
-apply: IH. lia.
-Qed.
-
 Inductive Γ_all_spec (bound i x : nat) t : Prop :=
   | Γ_all_lr_r : t = isr -> (forall i', nth_error (Γ_all bound i') x = Some (s_pos i' x)) -> i = S x -> x < bound -> Γ_all_spec bound i x t
   | Γ_all_lr_l : t = isl -> (forall i', nth_error (Γ_all bound i') x = Some (s_pos i' x)) -> i = x -> x < bound -> Γ_all_spec bound i x t
