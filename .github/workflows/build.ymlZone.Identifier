@@ -1,0 +1,4 @@
+[ZoneTransfer]
+ZoneId=3
+ReferrerUrl=https://github.com/uds-psl/coq-library-undecidability/blob/only-one-build-task/.github/workflows/build.yml
+HostUrl=https://raw.githubusercontent.com/uds-psl/coq-library-undecidability/only-one-build-task/.github/workflows/build.yml

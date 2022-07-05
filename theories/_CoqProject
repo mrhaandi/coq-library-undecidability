@@ -873,3 +873,7 @@ LambdaCalculus/Util/Krivine_facts.v
 LambdaCalculus/Reductions/HaltLclosed_to_wCBNclosed.v
 LambdaCalculus/Reductions/wCBNclosed_to_wCBN.v
 LambdaCalculus/Reductions/wCBNclosed_to_KrivineMclosed_HALT.v
+
+MinskyMachines/Util/MMA_computable.v
+TM/Util/TM_computable.v
+TM/Reductions/MMA_computable_to_TM_computable.v
