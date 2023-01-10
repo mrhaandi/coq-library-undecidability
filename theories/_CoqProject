@@ -780,4 +780,4 @@ IntersectionTypes/Reductions/CD_TYP_to_CD_TC.v
 
 CounterMachines/CM2X.v
 CounterMachines/CM2X_undec.v
-CounterMachines/Reductions/CM2_HALT_to_CM2X_HALT.v
+CounterMachines/Reductions/MM2_ZERO_HALTING_to_CM2X_HALT.v
