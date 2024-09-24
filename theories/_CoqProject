@@ -843,4 +843,6 @@ LambdaCalculus/Util/stlc_facts.v
 LambdaCalculus/Util/confluence.v
 LambdaCalculus/Reductions/SSTS01_to_HOMbeta.v
 
+L/Reductions/MMA_HALTING_to_HaltLclosed.v
+
 Synthetic/Models_Equivalent.v
