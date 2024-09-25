@@ -244,13 +244,19 @@ Fixpoint vec_seq i n : Vector.t nat n :=
   | S n => Vector.cons _ i _ (vec_seq (S i) n)
   end.
 
+Fixpoint rev_vec_seq n : Vector.t nat n :=
+  match n with
+  | 0 => Vector.nil _
+  | S n => Vector.cons _ n _ (rev_vec_seq n)
+  end.
+
 Lemma nth_of_list {X : Type} (d : X) (l : list X) i :
   Vector.nth (Vector.of_list l) i = nth (proj1_sig (Fin.to_nat i)) l d.
 Proof.
 Admitted.
 
 
-Lemma vec_nth_rev_seq k n i :
+Lemma vec_nth_rev_seq_list k n i :
   Vector.nth (Vector.of_list (rev (seq k n))) i = k + n - 1 - proj1_sig (Fin.to_nat i).
 Proof.
   rewrite (nth_of_list 0).
@@ -386,7 +392,7 @@ Definition enc_replace (x : Fin.t N) : term :=
   let n := proj1_sig (Fin.to_nat x) in
   (* \cs.\c. cs (\c1 .. cN.\f.f c1 .. c .. cN ) *)
   lam (lam (app (var 1) (lams N (
-    lam (apps (var 0) (map var (Vector.to_list (Vector.replace (Vector.of_list (rev (seq 1 N))) x (N + 1))))))))).
+    lam (apps (var 0) (map var (Vector.to_list (Vector.replace (Vector.map S (rev_vec_seq N)) x (N + 1))))))))).
 
 Lemma subst_app k s t u : subst (app s t) k u = app (subst s k u) (subst t k u).
 Proof.
@@ -421,10 +427,6 @@ Lemma vec_change_replace {X : Type} {n} (v : Vector.t X n) i x :
 Proof.
 Admitted.
 
-
-
-
-
 Opaque vec_seq.
 Opaque Nat.sub.
 
@@ -440,6 +442,19 @@ Proof.
       move=> i' /=. move E: (Fin.to_nat i') => [m Hm] /= [?].
       apply: IH. by rewrite E.
 Qed.
+
+Lemma vec_nth_rev_seq n i : VectorDef.nth (rev_vec_seq n) i = n - 1 - proj1_sig (Fin.to_nat i).
+Proof.
+  elim: n i.
+  - by apply: Fin.case0.
+  - move=> n IH i.
+    pattern i. apply: (Fin.caseS' i).
+    + move=> /=. lia.
+    + move=> {}i /=. rewrite IH.
+      move: (Fin.to_nat i) => [m Hm] /=. lia.
+Qed.
+
+Opaque rev_vec_seq.
 
 Lemma enc_replace_spec x v c : eval (apps (enc_replace x) [enc_regs v; nat_enc c]) (enc_regs (Vector.replace v x c)).
 Proof.
@@ -463,11 +478,11 @@ Proof.
       rewrite substs_closed; last done.
       by apply: nat_enc_closed.
     + rewrite !Vector.nth_replace_neq; [done..|].
-      rewrite vec_nth_rev_seq.
-      have /Nat.eqb_neq -> /=: 1 + N - 1 - proj1_sig (Fin.to_nat i) <> S (S (num_regs + 1)) by lia.
-      have /Nat.eqb_neq -> /=: S N - 1 - proj1_sig (Fin.to_nat i) <> S (S (num_regs + 0)) by lia.
+      rewrite (Vector.nth_map _ _ _ _ eq_refl).
+      rewrite vec_nth_rev_seq /=.
+      have /Nat.eqb_neq -> /=: N - 1 - proj1_sig (Fin.to_nat i) <> S (num_regs + 1) by lia.
+      have /Nat.eqb_neq -> /=: N - 1 - proj1_sig (Fin.to_nat i) <> S (num_regs + 0) by lia.
       move Ei: (Fin.to_nat i) => [n Hn] /=.
-      have ->: S N - 1 - n = S (S N - 1 - n - 1) by lia.
       rewrite rev_nth Vector.length_to_list; first lia.
       rewrite -Vector.to_list_nth_order; [|lia].
       move=> ?. rewrite nth_order_map. congr nat_enc.
