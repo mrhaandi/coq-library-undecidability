@@ -5,6 +5,8 @@ From Undecidability Require Import MinskyMachines.MMA L.L Shared.Libs.DLW.Code.s
 From Undecidability Require MinskyMachines.MM.
 Import MM (mm_instr).
 Require Import Undecidability.Shared.simulation.
+(* TODO refactor into shared lemmas *)
+Require Undecidability.MinskyMachines.Reductions.MMA_computable_to_MMA_mon_computable.
 Require Import ssreflect.
 
 Unset Implicit Arguments.
@@ -636,8 +638,6 @@ Proof.
   by move=> /= /Nat.eqb_neq ->.
 Qed.
 
-
-
 #[local] Hint Rewrite enc_replace_closed : subst.
 
 Lemma nat_succ_closed : closed nat_succ.
@@ -656,7 +656,13 @@ Qed.
 
 Lemma enc_nth_closed x : closed (enc_nth x).
 Proof.
-Admitted.
+  move=> k u. rewrite /enc_nth /= subst_lams /=.
+  congr Nat.iter.
+  move: (Fin.to_nat x) => [n Hn] /=.
+  by have /Nat.eqb_neq ->: N - 1 - n <> S (num_regs + k) by lia.
+Qed.
+
+#[local] Hint Rewrite enc_nth_closed : subst.
 
 Opaque enc_regs enc_replace nat_succ enc_nth.
 
@@ -671,7 +677,9 @@ Qed.
 
 Lemma enc_inc_closed x : closed (enc_inc x).
 Proof.
-Admitted.
+  move=> k u. rewrite /enc_inc /=.
+  by autorewrite with subst.
+Qed.
 
 #[local] Hint Rewrite enc_inc_closed : subst.
 
@@ -751,8 +759,6 @@ Proof.
   by apply: star_rt_steps.
 Qed.
 
-Axiom FF : False.
-
 Definition enc_recurse :=
   (* \i.\cs.\run.run i cs run *)
   lam (lam (lam (apps (var 0) [var 2; var 1; var 0]))).
@@ -764,10 +770,13 @@ Qed.
 
 Lemma enc_recurse_closed : closed enc_recurse.
 Proof.
-Admitted.
+  done.
+Qed.
 
 #[local] Hint Resolve eval_enc_recurse : core.
 #[local] Hint Rewrite enc_recurse_closed : subst.
+
+Axiom FF : False.
 
 Lemma mma_step_sim (instr : mm_instr (Fin.t N)) (p q : mm_state N) :
   mma_sss instr p q ->
@@ -803,9 +812,36 @@ Definition enc_step := lam (apps (var 0) (enc_halt :: map enc_instr (combine (se
 (* \i.\cs.step i cs recurse *)
 Definition enc_run := lam (lam (apps enc_step [var 1; var 0; enc_recurse])).
 
+Lemma enc_halt_closed : closed enc_halt.
+Proof.
+  done.
+Qed.
+
+#[local] Hint Rewrite enc_halt_closed : subst.
+
+Opaque enc_recurse.
+Opaque enc_halt.
+
+Lemma map_subst_map_enc_instr k t l : map (fun u => subst u k t) (map enc_instr l) = map enc_instr l.
+Proof.
+  rewrite map_map. apply: map_ext=> ?. by rewrite enc_instr_closed.
+Qed.
+
+Lemma enc_step_closed : closed enc_step.
+Proof.
+  rewrite /enc_step. move=> k u /=. rewrite subst_apps /=.
+  rewrite !map_app map_subst_map_enc_instr.
+  by autorewrite with subst.
+Qed.
+
+#[local] Hint Rewrite enc_step_closed : subst.
+
+Opaque enc_step.
+
 Lemma enc_run_closed : closed enc_run.
 Proof.
-Admitted.
+  rewrite /enc_run. move=> k u /=. by autorewrite with subst.
+Qed.
 
 Lemma eval_enc_run : eval enc_run enc_run.
 Proof.
@@ -831,11 +867,6 @@ Qed.
 
 Opaque enc_recurse.
 
-Lemma map_subst_map_enc_instr k t l : map (fun u => subst u k t) (map enc_instr l) = map enc_instr l.
-Proof.
-  rewrite map_map. apply: map_ext=> ?. by rewrite enc_instr_closed.
-Qed.
-
 #[local] Hint Rewrite subst_apps : subst.
 
 Lemma t_steps_enc_run_enc_step i cs :
@@ -848,8 +879,7 @@ Proof.
   apply: clos_t_rt_t.
   { rewrite /=. apply: t_step. by apply: step_app'. }
   rewrite /=. apply: rt_refl'.
-  autorewrite with subst.
-  by rewrite /= !map_app !map_subst_map_enc_instr /=.
+  by autorewrite with subst.
 Qed.
 
 Print Assumptions t_steps_enc_run_enc_step.
@@ -898,11 +928,13 @@ Proof.
 Admitted.
 
 Lemma out_code_stuck (p : nat * Vector.t nat N) : 
-  subcode.out_code (fst p) (1, P) ->
+  subcode.out_code (fst p) (1, P) <->
   stuck (sss_step (@mma_sss N) (1, P)) p.
 Proof.
-  by move=> /subcode.in_out_code Hp ? /sss_step_in_code.
-Qed.
+  split.
+  - by move=> /subcode.in_out_code Hp ? /sss_step_in_code.
+  - move=> H.
+Admitted.
 
 Definition sync p t := t = apps enc_run [pi (addr (fst p)); enc_regs (snd p); enc_run].
 
@@ -922,12 +954,12 @@ Proof.
 Admitted.
 
 Lemma sss_step_dec p :
-(exists q,
-sss_step (@mma_sss N) (1, P) p q) \/
-stuck (sss_step (@mma_sss N) (1, P)) p.
+  (exists q, sss_step (@mma_sss N) (1, P) p q) \/ stuck (sss_step (@mma_sss N) (1, P)) p.
 Proof.
-Admitted.
-
+  have [|] := subcode.in_out_code_dec (fst p) (1, P).
+  - move=> /MMA_computable_to_MMA_mon_computable.in_code_step ?. by left.
+  - move=> /MMA_computable_to_MMA_mon_computable.out_code_iff ?. by right.
+Qed.
 
 Opaque enc_run.
 
@@ -936,9 +968,7 @@ Proof.
   move=> k u. rewrite subst_apps /=. by autorewrite with subst.
 Qed.
 
-
 End MMA_HALTING_to_HaltLclosed.
-
 
 Require Import Undecidability.Synthetic.Definitions.
 
@@ -948,19 +978,8 @@ Definition HaltLclosed (s : {s : term | closed s}) := exists t, eval (proj1_sig 
 Lemma MMA_HALTING_terminates_sss_step_iff n (P : list (mm_instr (Fin.t (S n)))) (v : Vector.t nat (S n)) :
   MMA_HALTING (P, v) <-> terminates (sss_step (@mma_sss (S n)) (1, P)) (1, v).
 Proof.
-  rewrite /MMA_HALTING /sss_terminates /sss_output /terminates.
-  split.
-  - move=> [st' [[k Hk] Hst']]. exists st'. split.
-    + unfold sss_compute in Hk. cbn in Hk.
-      elim: k (1, v) Hk.
-      * move=> ? /sss_steps_0_inv <-. by apply: rt_refl.
-      * move=> k IH st /sss_steps_S_inv' [?] [??].
-        apply: rt_trans.
-        ** apply: rt_step. by eassumption.
-        ** by apply: IH.
-    + apply: out_code_stuck. by eassumption.
-  - admit.
-Admitted.
+  by apply: MMA_computable_to_MMA_mon_computable.sss_terminates_iff.
+Qed.
 
 Lemma steps_stuck_eval s t :
   closed s ->
