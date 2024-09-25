@@ -5,7 +5,6 @@ From Undecidability Require Import MinskyMachines.MMA L.L Shared.Libs.DLW.Code.s
 From Undecidability Require MinskyMachines.MM.
 Import MM (mm_instr).
 Require Import Undecidability.Shared.simulation.
-
 Require Import ssreflect.
 
 Unset Implicit Arguments.
@@ -567,6 +566,10 @@ Definition enc_instr '(i, instr) : term :=
   var 0
   end.
 
+Lemma enc_instr_closed o : closed (enc_instr o).
+Proof.
+Admitted.
+
 Definition enc_state (p : mm_state N) : term :=
   lam (apps (var 0) [pi (addr (fst p)); (enc_regs (snd p))]).
 
@@ -580,42 +583,6 @@ Proof.
   done.
 Qed.
 
-Lemma closed_pi i : closed (pi (addr i)).
-Proof.
-Admitted.
-
-(*
-Lemma eval_apps_lams {n : nat} (ts : Vector.t term n) s t u :
-  eval (snd (Vector.fold_right (fun s' '(n, t') => (S n, subst t' n s')) ts (0, s))) t ->
-  eval u (lams n s) ->
-  eval (apps u (VectorDef.to_list ts)) t.
-Proof.
-  elim: ts s t u.
-  - admit. (* eval_trans *)
-  - move=> t' {}n ts IH s t u.
-    rewrite Vector.to_list_cons /=.
-    move=> H Hu. apply: IH; first last.
-    + econstructor; [eassumption|..].
-  simpl.
-  rewrite -/Vector.fold_right.
-  cbn.
-Admitted.
-*)
-
-(*
-Lemma eval_apps_lams {n : nat} (ts : Vector.t term n) s t :
-  eval (snd (Vector.fold_right (fun s' '(n, t') => (S n, subst t' n s')) ts (0, s))) t ->
-  eval (apps (lams n s) (VectorDef.to_list ts)) t.
-Proof.
-  elim: ts s t; first done.
-  move=> t' {}n ts IH s t.
-  rewrite Vector.to_list_cons /=.
-  simpl.
-  rewrite -/Vector.fold_right.
-  cbn.
-Admitted.
-*)
-
 Lemma eval_enc_pair t1 t2 : eval (enc_pair t1 t2) (enc_pair t1 t2).
 Proof.
   constructor.
@@ -625,7 +592,6 @@ Lemma vec_fold_right_map {X Y Z : Type} (f : Y -> Z -> Z) (g : X -> Y) {n : nat}
   Vector.fold_right f (Vector.map g v) z = Vector.fold_right (fun x z => f (g x) z) v z.
 Proof.
 Admitted.
-
 
 Lemma pi_closed i : i < S (length P) -> closed (pi i).
 Proof.
@@ -646,12 +612,15 @@ Proof.
   - by rewrite /= subst_lams Nat.add_succ_r /=.
 Qed.
 
+#[local] Hint Rewrite pi_succ_closed : subst.
+
 Lemma pi_addr_closed i : closed (pi (addr i)).
 Proof.
-  apply: pi_closed.
-  rewrite /addr.
+  apply: pi_closed. rewrite /addr.
   case E: (i - length P) => [|?]; lia.
 Qed.
+
+#[local] Hint Rewrite pi_addr_closed : subst.
 
 Opaque enc_pair pi_succ pi enc_regs.
 
@@ -681,19 +650,124 @@ Qed.
 
 (* \cs.\f.\run.cs *)
 Definition enc_halt := lam (lam (lam (var 2))).
-(* \i.\cs.i (halt :: P) cs *)
-Definition enc_step := lam (lam (apps (var 1) (enc_halt :: map enc_instr (combine (seq 1 (length P)) P) ++ [var 0]))).
-(* \(i, cs).(i, cs) (\i.\cs.step i cs) (\i'.\cs'.\run.run i' cs' run) *)
-Definition enc_run := lam (apps (var 0) [lam (lam (apps enc_step [var 1; var 0]));
-  lam (lam (lam (apps (var 0) [var 2; var 1; var 0])))]).
+(* \i.i (halt :: P) *)
+Definition enc_step := lam (apps (var 0) (enc_halt :: map enc_instr (combine (seq 1 (length P)) P) ++ [var 0])).
+(* \i.\cs.step i cs (\i'.\cs'.\run.run i' cs' run) *)
+Definition enc_run := lam (lam (apps enc_step [var 1; var 0; lam (lam (lam (apps (var 0) [var 2; var 1; var 0])))])).
+
+Lemma clos_t_rt_t {A : Type} {R : relation A} (x y z : A) :
+  clos_trans A R x y -> clos_refl_trans A R y z -> clos_trans A R x z.
+Proof.
+  move=> H /clos_rt_rtn1_iff H'. elim: H' H; by eauto using clos_trans.
+Qed.
+
+Lemma t_steps_app_l s t1 t2 : clos_trans term step t1 t2 -> clos_trans term step (app s t1) (app s t2).
+Proof.
+  elim.
+  - move=> > ?. apply: t_step. by apply: L_facts.stepAppR.
+  - move=> *. apply: t_trans; by eassumption.
+Admitted.
+
+Lemma t_steps_app_r s1 s2 t : clos_trans term step s1 s2 -> clos_trans term step (app s1 t) (app s2 t).
+Proof.
+  elim.
+  - move=> > ?. apply: t_step. by apply: L_facts.stepAppL.
+  - move=> *. apply: t_trans; by eassumption.
+Qed.
+
+Lemma rt_steps_app_l s t1 t2 : clos_refl_trans term step t1 t2 -> clos_refl_trans term step (app s t1) (app s t2).
+Proof.
+  elim.
+  - move=> > ?. apply: rt_step. by apply: L_facts.stepAppR.
+  - move=> *. by apply: rt_refl.
+  - move=> *. apply: rt_trans; by eassumption.
+Qed.
+
+Lemma rt_steps_app_r s1 s2 t : clos_refl_trans term step s1 s2 -> clos_refl_trans term step (app s1 t) (app s2 t).
+Proof.
+  elim.
+  - move=> > ?. apply: rt_step. by apply: L_facts.stepAppL.
+  - move=> *. by apply: rt_refl.
+  - move=> *. apply: rt_trans; by eassumption.
+Qed.
+
+Lemma rt_refl' : forall (A : Type) (R : relation A) (x y : A), x = y -> clos_refl_trans A R x y.
+Proof.
+  move=> > <-. by apply: rt_refl.
+Qed.
+
+
+Lemma map_subst_map_enc_instr k t l : map (fun u => subst u k t) (map enc_instr l) = map enc_instr l.
+Proof.
+  rewrite map_map. apply: map_ext=> ?. by rewrite enc_instr_closed.
+Qed.
+
+#[local] Hint Rewrite subst_apps : subst.
+
+Lemma t_steps_enc_run_enc_step i cs :
+  clos_trans term step
+    (apps enc_run [pi (addr i); enc_regs cs])
+    (apps enc_step [pi (addr i); enc_regs cs; lam (lam (lam (apps (var 0) [var 2; var 1; var 0])))]).
+Proof.
+  apply: t_trans.
+  { apply: t_steps_app_r. apply: t_step. apply: step_app'. by apply: eval_pi. }
+  apply: clos_t_rt_t.
+  { rewrite /=. apply: t_step. apply: step_app'. by apply: eval_enc_regs. }
+  rewrite /=. apply: rt_refl'.
+  autorewrite with subst.
+  by rewrite /= !map_app !map_subst_map_enc_instr /=.
+Qed.
+
+Print Assumptions t_steps_enc_run_enc_step.
+
+Opaque enc_step enc_instr.
+
+Lemma enc_step_spec l instr r cs :
+  P = l ++ instr :: r ->
+  clos_refl_trans term step
+    (apps enc_step [pi (addr (S (length l))); enc_regs cs])
+    (app (enc_instr (S (length l), instr)) (enc_regs cs)).
+Proof.
+Admitted.
+
+Lemma eval_rt s t : eval s t -> clos_refl_trans term step s t.
+Proof.
+Admitted.
+
+Lemma enc_state_spec p t : clos_refl_trans term step
+  (app (enc_state p) (lam (lam t)))
+  (subst (subst t 1 (pi (addr (fst p)))) 0 (enc_regs (snd p))).
+Proof.
+Admitted.
+
+Lemma eval_enc_run : eval enc_run enc_run.
+Proof.
+  by constructor.
+Qed.
 
 Lemma enc_run_spec (p q : mm_state N) : @sss_step _ _ (@mma_sss N) (1, P) p q ->
-  ARS.star L_facts.step (apps enc_run [enc_state p; enc_run]) (apps enc_run [enc_state q; enc_run]).
+  clos_trans term step
+    (apps enc_run [pi (addr (fst p)); enc_regs (snd p); enc_run])
+    (apps enc_run [pi (addr (fst q)); enc_regs (snd q); enc_run]).
 Proof.
   move=> [k [l [instr [r [cs]]]]].
   move=> [[??]] [?]. subst k p.
-  Check sss_step.
-Admitted.
+  move=> /mma_step_sim /eval_rt Hpq. apply: clos_t_rt_t.
+  { rewrite /=. apply: t_steps_app_r. by apply: t_steps_enc_run_enc_step. }
+  apply: rt_trans.
+  { apply: rt_steps_app_r. apply: rt_steps_app_r. rewrite /=.
+    apply: enc_step_spec. by eassumption. }
+  apply: rt_trans.
+  { apply: rt_steps_app_r. apply: rt_steps_app_r. by eassumption. }
+  apply: rt_trans.
+  { apply: rt_steps_app_r. by apply: enc_state_spec. }
+  apply: rt_trans.
+  { apply: rt_step. rewrite /=. apply: step_app'. by apply: eval_enc_run. }
+  rewrite /= !pi_addr_closed enc_regs_closed.
+  by apply: rt_refl.
+Qed.
+
+Print Assumptions enc_run_spec.
 
 Lemma enc_halt_spec (p : mm_state N) : fst p < 1 \/ S (length P) <= fst p ->
   ARS.star L_facts.step (apps enc_run [enc_state p; enc_run]) (nat_enc (Vector.hd (snd p))).
@@ -713,16 +787,6 @@ Lemma closed_enc_state p : closed (enc_state p).
 Proof.
 Admitted.
 
-Lemma transport p q : sss_output (@mma_sss N) (1, P) p q ->
-  eval (app (app enc_run (enc_state p)) enc_run) (enc_regs (snd q)).
-Proof.
-Admitted.
-
-Lemma reflection p cs : eval (app (app enc_run (enc_state p)) enc_run) (enc_regs cs) ->
-  exists k, sss_steps (@mma_sss N) (1, P) k p (0, cs).
-Proof.
-
-Admitted.
 
 Lemma out_code_stuck (p : nat * Vector.t nat N) : 
   subcode.out_code (fst p) (1, P) ->
@@ -731,14 +795,16 @@ Proof.
   by move=> /subcode.in_out_code Hp ? /sss_step_in_code.
 Qed.
 
-Definition sync p t := t = app (app enc_run (enc_state p)) enc_run.
+Definition sync p t := t = apps enc_run [pi (addr (fst p)); enc_regs (snd p); enc_run].
 
 Lemma sss_step_transport p q s :
   sss_step (@mma_sss N) (1, P) p q ->
   sync p s  ->
   exists t, clos_trans term step s t /\ sync q t.
 Proof.
-Admitted.
+  move=> /enc_run_spec H ->.
+  by exists (apps enc_run [pi (addr (fst q)); enc_regs (snd q); enc_run]).
+Qed.
 
 Lemma stuck_sss_step_transport p s : 
   stuck (sss_step (@mma_sss N) (1, P)) p ->
@@ -758,7 +824,6 @@ End MMA_HALTING_to_HaltLclosed.
 Opaque enc_run enc_state.
 
 Require Import Undecidability.Synthetic.Definitions.
-
 
 (* Halting problem for weak call-by-value lambda-calculus *)
 Definition HaltLclosed (s : {s : term | closed s}) := exists t, eval (proj1_sig s) t.
