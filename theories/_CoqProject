@@ -151,7 +151,7 @@ Shared/Libs/PSL/FiniteTypes/CompoundFinTypes.v
 Shared/Libs/PSL/FiniteTypes/DepPairs.v
 Shared/Libs/PSL/FiniteTypes/VectorFin.v
 
-Shared/deterministic_simulation.v
+Shared/simulation.v
 
 L/Util/NaryApp.v
 L/Util/ClosedLAdmissible.v
