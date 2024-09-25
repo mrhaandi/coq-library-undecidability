@@ -9,9 +9,24 @@ Require Import ssreflect.
 
 Unset Implicit Arguments.
 
-(*
-#[local] Notation "i // s -1> t" := (one_step (@mma_sss _) i s t) (at level 70, no associativity).
-*)
+(* general facts *)
+
+Lemma vec_pos_nth {X : Type} {n} {v : Vector.t X n} {i} :
+  vec.vec_pos v i = Vector.nth v i.
+Proof.
+  elim: v i; first by apply: Fin.case0.
+  move=> ?? v IH i.
+  pattern i. by apply: (Fin.caseS' i).
+Qed.
+
+Lemma vec_change_replace {X : Type} {n} (v : Vector.t X n) i x :
+  vec.vec_change v i x = Vector.replace v i x.
+Proof.
+  elim: v i; first by apply: Fin.case0.
+  move=> ?? v IH i.
+  pattern i. apply: (Fin.caseS' i); first done.
+  move=> ?. by congr Vector.cons.
+Qed.
 
 #[local] Notation lams k M := (Nat.iter k lam M).
 #[local] Notation apps M Ns := (fold_left app Ns M).
@@ -57,6 +72,8 @@ Lemma eval_pi i : eval (pi i) (pi i).
 Proof.
   constructor.
 Qed.
+
+#[local] Hint Resolve eval_pi : core.
 
 Definition pi_succ := lam (apps (var 0) (map pi ((seq 1 (length P)) ++ [0]))).
 
@@ -313,6 +330,8 @@ Proof.
   by constructor.
 Qed.
 
+#[local] Hint Resolve eval_enc_regs : core.
+
 (* get nth vector element *)
 Definition enc_nth (x : Fin.t N) : term :=
   (* \c1 .. cN.cx *)
@@ -408,6 +427,64 @@ Definition enc_replace (x : Fin.t N) : term :=
   (* \c.\c1 .. cN.\f.f c1 .. c .. cN *)
   lam (lams N (lam (apps (var 0) (map var (Vector.to_list (Vector.replace (Vector.map S (rev_vec_seq N)) x (N + 1))))))).
 
+Lemma rev_vec_seq_S n : rev_vec_seq (S n) = Vector.cons _ n _ (rev_vec_seq n).
+Proof.
+  done.
+Qed.
+
+Opaque rev_vec_seq.
+
+Lemma vec_In_nil {X : Type} {x} : Vector.In x (Vector.nil X) -> False.
+Proof.
+  intros H. by inversion H.
+Qed.
+
+Lemma vec_In_replace {X : Type} {n} {v : Vector.t X n} {i x y} :
+  Vector.In y (Vector.replace v i x) -> y = x \/ Vector.In y v.
+Proof.
+  elim: v i x.
+  - by apply: Fin.case0.
+  - move=> x {}n v IH /= i x'.
+    pattern i. apply: (Fin.caseS' i).
+    + move=> /= /Vector.In_cons_iff [<-|?]; first by left.
+      right. by constructor.
+    + move=> /= j /Vector.In_cons_iff [<-|/IH [?|?]].
+      * right. by constructor.
+      * by left.
+      * right. by constructor.
+Qed.
+
+Lemma vec_In_map {X Y : Type} {n} {f : X -> Y} {v : Vector.t X n} {y} :
+  Vector.In y (Vector.map f v) -> exists x, y = f x /\ Vector.In x v.
+Proof.
+  elim: v.
+  - by move=> /vec_In_nil.
+  - move=> x {}n v IH /= /Vector.In_cons_iff [<-|/IH].
+    + eexists. split; first done. by constructor.
+    + move=> [? [-> ?]].
+      eexists. split; first done. by constructor.
+Qed.
+
+Lemma vec_In_rev_seq n i : Vector.In i (rev_vec_seq n) -> i < n.
+Proof.
+  elim: n.
+  - by move=> /vec_In_nil.
+  - move=> n IH. rewrite rev_vec_seq_S.
+    move=> /Vector.In_cons_iff [->|/IH]; lia.
+Qed.
+
+Lemma enc_replace_closed x : closed (enc_replace x).
+Proof.
+  move=> k u. rewrite /= subst_lams /= subst_apps /=.
+  rewrite /enc_replace.
+  rewrite map_map -!Vector.to_list_map.
+  congr lam. congr Nat.iter. congr lam. congr fold_left.
+  congr Vector.to_list. apply: Vector.map_ext_in => n /= /vec_In_replace H.
+  have /Nat.eqb_neq ->: n <> S (S (num_regs + S k)); last done.
+  move: H => [->|]; first by lia.
+  move=> /vec_In_map [?] [->] /vec_In_rev_seq. lia.
+Qed.
+
 Lemma subst_app k s t u : subst (app s t) k u = app (subst s k u) (subst t k u).
 Proof.
   done.
@@ -427,16 +504,12 @@ Proof.
   apply: map_ext=> ?. by rewrite nat_enc_closed.
 Qed.
 
+#[local] Hint Rewrite enc_regs_closed : subst.
+
 Lemma eval_lam' s t : lam s = t -> eval (lam s) t.
 Proof.
   move=> <-. by constructor.
 Qed.
-
-
-Lemma vec_change_replace {X : Type} {n} (v : Vector.t X n) i x :
-  vec.vec_change v i x = Vector.replace v i x.
-Proof.
-Admitted.
 
 Opaque vec_seq.
 Opaque Nat.sub.
@@ -447,12 +520,53 @@ Proof.
   - by apply: Fin.case0.
   - move=> n IH i.
     pattern i. apply: (Fin.caseS' i).
-    + move=> /=. lia.
-    + move=> {}i /=. rewrite IH.
+    + rewrite rev_vec_seq_S /=. lia.
+    + move=> {}i /=. rewrite rev_vec_seq_S /= IH.
       move: (Fin.to_nat i) => [m Hm] /=. lia.
 Qed.
 
 Opaque rev_vec_seq.
+
+Lemma clos_t_rt_t {A : Type} {R : relation A} (x y z : A) :
+  clos_trans A R x y -> clos_refl_trans A R y z -> clos_trans A R x z.
+Proof.
+  move=> H /clos_rt_rtn1_iff H'. elim: H' H; by eauto using clos_trans.
+Qed.
+
+Lemma t_steps_app_l s t1 t2 : clos_trans term step t1 t2 -> clos_trans term step (app s t1) (app s t2).
+Proof.
+  elim.
+  - move=> > ?. apply: t_step. by apply: L_facts.stepAppR.
+  - move=> *. apply: t_trans; by eassumption.
+Admitted.
+
+Lemma t_steps_app_r s1 s2 t : clos_trans term step s1 s2 -> clos_trans term step (app s1 t) (app s2 t).
+Proof.
+  elim.
+  - move=> > ?. apply: t_step. by apply: L_facts.stepAppL.
+  - move=> *. apply: t_trans; by eassumption.
+Qed.
+
+Lemma rt_steps_app_l s t1 t2 : clos_refl_trans term step t1 t2 -> clos_refl_trans term step (app s t1) (app s t2).
+Proof.
+  elim.
+  - move=> > ?. apply: rt_step. by apply: L_facts.stepAppR.
+  - move=> *. by apply: rt_refl.
+  - move=> *. apply: rt_trans; by eassumption.
+Qed.
+
+Lemma rt_steps_app_r s1 s2 t : clos_refl_trans term step s1 s2 -> clos_refl_trans term step (app s1 t) (app s2 t).
+Proof.
+  elim.
+  - move=> > ?. apply: rt_step. by apply: L_facts.stepAppL.
+  - move=> *. by apply: rt_refl.
+  - move=> *. apply: rt_trans; by eassumption.
+Qed.
+
+Lemma rt_refl' : forall (A : Type) (R : relation A) (x y : A), x = y -> clos_refl_trans A R x y.
+Proof.
+  move=> > <-. by apply: rt_refl.
+Qed.
 
 Lemma step_app' s t : eval t t -> step (app (lam s) t) (subst s 0 t).
 Proof.
@@ -522,17 +636,23 @@ Proof.
   by move=> /= /Nat.eqb_neq ->.
 Qed.
 
-Lemma enc_replace_closed x : closed (enc_replace x).
-Proof.
-Admitted.
+
+
+#[local] Hint Rewrite enc_replace_closed : subst.
 
 Lemma nat_succ_closed : closed nat_succ.
 Proof.
-Admitted.
+  done.
+Qed.
+
+#[local] Hint Rewrite nat_succ_closed : subst.
 
 Lemma nat_succ_spec t c : eval t (nat_enc c) -> eval (app nat_succ t) (nat_enc (S c)).
 Proof.
-Admitted.
+  rewrite /nat_succ. move=> H.
+  econstructor; [constructor|eassumption|].
+  rewrite /=. by constructor.
+Qed.
 
 Lemma enc_nth_closed x : closed (enc_nth x).
 Proof.
@@ -543,7 +663,7 @@ Opaque enc_regs enc_replace nat_succ enc_nth.
 Lemma enc_inc_spec (x : Fin.t N) (v : Vector.t nat N) :
   eval (app (enc_inc x) (enc_regs v)) (enc_regs (Vector.replace v x (S (Vector.nth v x)))).
 Proof.
-  rewrite /enc_inc. econstructor; [constructor|apply: eval_enc_regs|].
+  rewrite /enc_inc. econstructor; [constructor|done|].
   rewrite /= enc_replace_closed nat_succ_closed enc_nth_closed.
   apply: enc_replace_spec. apply: nat_succ_spec.
   by apply: enc_nth_spec.
@@ -552,6 +672,8 @@ Qed.
 Lemma enc_inc_closed x : closed (enc_inc x).
 Proof.
 Admitted.
+
+#[local] Hint Rewrite enc_inc_closed : subst.
 
 Opaque enc_inc.
 
@@ -569,14 +691,6 @@ Definition enc_instr '(i, instr) : term :=
 Lemma enc_instr_closed o : closed (enc_instr o).
 Proof.
 Admitted.
-
-Definition enc_state (p : mm_state N) : term :=
-  lam (apps (var 0) [pi (addr (fst p)); (enc_regs (snd p))]).
-
-Lemma eval_enc_state p : eval (enc_state p) (enc_state p).
-Proof.
-  constructor.
-Qed.
 
 Lemma subst_enc_pair t1 t2 k s : subst (enc_pair t1 t2) k s = enc_pair (subst t1 (S k) s) (subst t2 (S k) s).
 Proof.
@@ -624,78 +738,98 @@ Qed.
 
 Opaque enc_pair pi_succ pi enc_regs.
 
+Lemma star_rt_steps s t : ARS.star step s t -> clos_refl_trans term step s t.
+Proof.
+  elim=> *.
+  - by apply: rt_refl.
+  - by apply: rt_trans; [apply: rt_step|]; eassumption.
+Qed.
+
+Lemma eval_rt s t : eval s t -> clos_refl_trans term step s t.
+Proof.
+  move=> /L_facts.eval_iff [?] [?] ?. subst.
+  by apply: star_rt_steps.
+Qed.
+
 Axiom FF : False.
 
-Lemma vec_pos_nth {X : Type} {n} {v : Vector.t X n} {i} :
-  vec.vec_pos v i = Vector.nth v i.
+Definition enc_recurse :=
+  (* \i.\cs.\run.run i cs run *)
+  lam (lam (lam (apps (var 0) [var 2; var 1; var 0]))).
+
+Lemma eval_enc_recurse : eval enc_recurse enc_recurse.
+Proof.
+  by constructor.
+Qed.
+
+Lemma enc_recurse_closed : closed enc_recurse.
 Proof.
 Admitted.
 
+#[local] Hint Resolve eval_enc_recurse : core.
+#[local] Hint Rewrite enc_recurse_closed : subst.
+
 Lemma mma_step_sim (instr : mm_instr (Fin.t N)) (p q : mm_state N) :
-  mma_sss instr p q -> eval (app (enc_instr (fst p, instr)) (enc_regs (snd p))) (enc_state q).
+  mma_sss instr p q ->
+  clos_refl_trans _ step
+    (apps (enc_instr (fst p, instr)) [enc_regs (snd p); enc_recurse])
+    (apps enc_recurse [pi (addr (fst q)); enc_regs (snd q)]).
 Proof.
   case.
   - (* INC *)
-    move=> i x v /=.
-    econstructor; [by constructor|by apply: eval_enc_regs|].
-    rewrite /= pi_addr_closed enc_inc_closed.
-    econstructor; [by constructor|by apply: enc_inc_spec|].
-    rewrite /= pi_addr_closed vec_pos_nth vec_change_replace.
-    by constructor.
+    move=> i x v /=. rewrite vec_change_replace vec_pos_nth.
+    apply: rt_trans.
+    { apply: rt_steps_app_r. apply: rt_step. by apply: step_app'. }
+    apply: rt_trans.
+    { apply: rt_steps_app_r. rewrite /=. apply: rt_steps_app_l.
+      autorewrite with subst. apply: eval_rt. by apply: enc_inc_spec. }
+    apply: rt_trans.
+    { apply: rt_steps_app_r. autorewrite with subst. apply: rt_step. by apply: step_app'. }
+    apply: rt_trans.
+    { rewrite /=. apply: rt_step. by apply: step_app'. }
+    rewrite /=. autorewrite with subst. by apply: rt_refl.
   - (* DEC *)
     destruct FF.
   - (* JUMP *)
     destruct FF.
 Qed.
 
+Print Assumptions mma_step_sim.
+
 (* \cs.\f.\run.cs *)
 Definition enc_halt := lam (lam (lam (var 2))).
 (* \i.i (halt :: P) *)
 Definition enc_step := lam (apps (var 0) (enc_halt :: map enc_instr (combine (seq 1 (length P)) P) ++ [var 0])).
-(* \i.\cs.step i cs (\i'.\cs'.\run.run i' cs' run) *)
-Definition enc_run := lam (lam (apps enc_step [var 1; var 0; lam (lam (lam (apps (var 0) [var 2; var 1; var 0])))])).
+(* \i.\cs.step i cs recurse *)
+Definition enc_run := lam (lam (apps enc_step [var 1; var 0; enc_recurse])).
 
-Lemma clos_t_rt_t {A : Type} {R : relation A} (x y z : A) :
-  clos_trans A R x y -> clos_refl_trans A R y z -> clos_trans A R x z.
+Lemma enc_run_closed : closed enc_run.
 Proof.
-  move=> H /clos_rt_rtn1_iff H'. elim: H' H; by eauto using clos_trans.
-Qed.
-
-Lemma t_steps_app_l s t1 t2 : clos_trans term step t1 t2 -> clos_trans term step (app s t1) (app s t2).
-Proof.
-  elim.
-  - move=> > ?. apply: t_step. by apply: L_facts.stepAppR.
-  - move=> *. apply: t_trans; by eassumption.
 Admitted.
 
-Lemma t_steps_app_r s1 s2 t : clos_trans term step s1 s2 -> clos_trans term step (app s1 t) (app s2 t).
+Lemma eval_enc_run : eval enc_run enc_run.
 Proof.
-  elim.
-  - move=> > ?. apply: t_step. by apply: L_facts.stepAppL.
-  - move=> *. apply: t_trans; by eassumption.
+  by constructor.
 Qed.
 
-Lemma rt_steps_app_l s t1 t2 : clos_refl_trans term step t1 t2 -> clos_refl_trans term step (app s t1) (app s t2).
+#[local] Hint Rewrite enc_run_closed : subst.
+#[local] Hint Resolve eval_enc_run : core.
+
+Lemma enc_recurse_spec p :
+  clos_refl_trans term step
+    (apps enc_recurse [pi (addr (fst p)); enc_regs (snd p); enc_run])
+    (apps enc_run [pi (addr (fst p)); enc_regs (snd p); enc_run]).
 Proof.
-  elim.
-  - move=> > ?. apply: rt_step. by apply: L_facts.stepAppR.
-  - move=> *. by apply: rt_refl.
-  - move=> *. apply: rt_trans; by eassumption.
+  apply: rt_trans.
+  { apply: rt_steps_app_r. apply: rt_steps_app_r. apply: rt_step. by apply: step_app'. }
+  apply: rt_trans.
+  { apply: rt_steps_app_r. apply: rt_step. rewrite /=. by apply: step_app'. }
+  apply: rt_trans.
+  { apply: rt_step. rewrite /=. by apply: step_app'. }
+  rewrite /=. autorewrite with subst. by apply: rt_refl.
 Qed.
 
-Lemma rt_steps_app_r s1 s2 t : clos_refl_trans term step s1 s2 -> clos_refl_trans term step (app s1 t) (app s2 t).
-Proof.
-  elim.
-  - move=> > ?. apply: rt_step. by apply: L_facts.stepAppL.
-  - move=> *. by apply: rt_refl.
-  - move=> *. apply: rt_trans; by eassumption.
-Qed.
-
-Lemma rt_refl' : forall (A : Type) (R : relation A) (x y : A), x = y -> clos_refl_trans A R x y.
-Proof.
-  move=> > <-. by apply: rt_refl.
-Qed.
-
+Opaque enc_recurse.
 
 Lemma map_subst_map_enc_instr k t l : map (fun u => subst u k t) (map enc_instr l) = map enc_instr l.
 Proof.
@@ -712,7 +846,7 @@ Proof.
   apply: t_trans.
   { apply: t_steps_app_r. apply: t_step. apply: step_app'. by apply: eval_pi. }
   apply: clos_t_rt_t.
-  { rewrite /=. apply: t_step. apply: step_app'. by apply: eval_enc_regs. }
+  { rewrite /=. apply: t_step. by apply: step_app'. }
   rewrite /=. apply: rt_refl'.
   autorewrite with subst.
   by rewrite /= !map_app !map_subst_map_enc_instr /=.
@@ -730,21 +864,6 @@ Lemma enc_step_spec l instr r cs :
 Proof.
 Admitted.
 
-Lemma eval_rt s t : eval s t -> clos_refl_trans term step s t.
-Proof.
-Admitted.
-
-Lemma enc_state_spec p t : clos_refl_trans term step
-  (app (enc_state p) (lam (lam t)))
-  (subst (subst t 1 (pi (addr (fst p)))) 0 (enc_regs (snd p))).
-Proof.
-Admitted.
-
-Lemma eval_enc_run : eval enc_run enc_run.
-Proof.
-  by constructor.
-Qed.
-
 Lemma enc_run_spec (p q : mm_state N) : @sss_step _ _ (@mma_sss N) (1, P) p q ->
   clos_trans term step
     (apps enc_run [pi (addr (fst p)); enc_regs (snd p); enc_run])
@@ -752,29 +871,24 @@ Lemma enc_run_spec (p q : mm_state N) : @sss_step _ _ (@mma_sss N) (1, P) p q ->
 Proof.
   move=> [k [l [instr [r [cs]]]]].
   move=> [[??]] [?]. subst k p.
-  move=> /mma_step_sim /eval_rt Hpq. apply: clos_t_rt_t.
+  move=> /mma_step_sim Hpq. apply: clos_t_rt_t.
   { rewrite /=. apply: t_steps_app_r. by apply: t_steps_enc_run_enc_step. }
   apply: rt_trans.
   { apply: rt_steps_app_r. apply: rt_steps_app_r. rewrite /=.
     apply: enc_step_spec. by eassumption. }
   apply: rt_trans.
-  { apply: rt_steps_app_r. apply: rt_steps_app_r. by eassumption. }
-  apply: rt_trans.
-  { apply: rt_steps_app_r. by apply: enc_state_spec. }
-  apply: rt_trans.
-  { apply: rt_step. rewrite /=. apply: step_app'. by apply: eval_enc_run. }
-  rewrite /= !pi_addr_closed enc_regs_closed.
-  by apply: rt_refl.
+  { apply: rt_steps_app_r. by eassumption. }
+  by apply: enc_recurse_spec.
 Qed.
 
 Print Assumptions enc_run_spec.
 
 Lemma enc_halt_spec (p : mm_state N) : fst p < 1 \/ S (length P) <= fst p ->
-  ARS.star L_facts.step (apps enc_run [enc_state p; enc_run]) (nat_enc (Vector.hd (snd p))).
+  ARS.star L_facts.step (apps enc_run [pi (addr (fst p)); enc_regs (snd p); enc_run]) (enc_regs (snd p)).
 Proof.
 Admitted.
 
-Lemma enc_run_spec' {i v t} : eval (app (app enc_run (enc_state (i, v))) enc_run) t ->
+Lemma enc_run_spec' {i v t} : eval (apps enc_run [pi (addr i); enc_regs v; enc_run]) t ->
   exists cs, t = enc_regs cs.
 Proof.
 Admitted.
@@ -782,11 +896,6 @@ Admitted.
 Lemma closed_enc_run : closed enc_run.
 Proof.
 Admitted.
-
-Lemma closed_enc_state p : closed (enc_state p).
-Proof.
-Admitted.
-
 
 Lemma out_code_stuck (p : nat * Vector.t nat N) : 
   subcode.out_code (fst p) (1, P) ->
@@ -819,9 +928,17 @@ stuck (sss_step (@mma_sss N) (1, P)) p.
 Proof.
 Admitted.
 
+
+Opaque enc_run.
+
+Lemma closed_apps_enc_run i cs : closed (apps enc_run [pi (addr i); enc_regs cs; enc_run]).
+Proof.
+  move=> k u. rewrite subst_apps /=. by autorewrite with subst.
+Qed.
+
+
 End MMA_HALTING_to_HaltLclosed.
 
-Opaque enc_run enc_state.
 
 Require Import Undecidability.Synthetic.Definitions.
 
@@ -860,8 +977,8 @@ Admitted.
 Lemma reduction n : @MMA_HALTING (S n) ⪯ HaltLclosed.
 Proof.
   unshelve eexists.
-  - intros [P v]. exists (apps (enc_run P) [enc_state P (1, v); enc_run P]).
-    intros u k. cbn. by rewrite !closed_enc_run closed_enc_state.
+  - intros [P v]. exists (apps (enc_run P) [pi P (addr P 1); enc_regs v; enc_run P]).
+    apply closed_apps_enc_run.
   - intros [P v]. split.
     + intros ?%MMA_HALTING_terminates_sss_step_iff.
       destruct (@terminates_transport _ _
@@ -875,7 +992,7 @@ Proof.
         eq_refl
         H) as [t [H1t H2t]].
       exists t. cbn. eapply steps_stuck_eval; [|assumption..].
-      intros u k. cbn. by rewrite !closed_enc_run closed_enc_state.
+      apply closed_apps_enc_run.
     + intros [t Ht%eval_steps_stuck]. cbn in Ht.
       apply MMA_HALTING_terminates_sss_step_iff.
       apply (@terminates_reflection _ _ 
