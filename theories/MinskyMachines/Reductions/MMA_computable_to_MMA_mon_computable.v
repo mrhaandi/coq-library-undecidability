@@ -16,14 +16,14 @@ From Undecidability.MinskyMachines Require Import MM MMA MMA.mma_defs Util.MMA_c
 From Undecidability.Shared.Libs.DLW
   Require Import Vec.pos Vec.vec Code.sss.
 
-Require Undecidability.Shared.deterministic_simulation.
+Require Undecidability.Shared.simulation.
 
 Require Import List PeanoNat Lia Relations.
 Import ListNotations.
 
 Require Import ssreflect.
 
-Module Sim := deterministic_simulation.
+Module Sim := simulation.
 
 Set Default Goal Selector "!".
 
@@ -441,6 +441,6 @@ Proof.
     rewrite /= length_P' /=. lia.
   - move=> v /sss_terminates_iff Hv. apply: H2P.
     apply /sss_terminates_iff. move: Hv.
-    apply /(Sim.terminates_reflection step2_det fstep step1_intro).
+    apply /(Sim.terminates_reflection (Sim.deterministic_uniformly_confluent _ step2_det) fstep step1_intro).
     rewrite -vec_append_const. by apply: sync_intro.
 Qed.

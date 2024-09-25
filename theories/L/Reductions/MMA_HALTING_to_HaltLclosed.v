@@ -7,6 +7,8 @@ Import MM (mm_instr).
 
 Require Import ssreflect.
 
+Unset Implicit Arguments.
+
 (*
 #[local] Notation "i // s -1> t" := (one_step (@mma_sss _) i s t) (at level 70, no associativity).
 *)
@@ -313,9 +315,8 @@ Qed.
 
 (* get nth vector element *)
 Definition enc_nth (x : Fin.t N) : term :=
-  let n := proj1_sig (Fin.to_nat x) in
-  (* \cs. cs (\c1 .. cN.cx) *)
-  lam (app (var 0) (lams N (var (N - 1 - n)))).
+  (* \c1 .. cN.cx *)
+  lams N (var (N - 1 - proj1_sig (Fin.to_nat x))).
 
 Lemma eval_lams_N s : eval (lams N s) (lams N s).
 Proof.
@@ -348,6 +349,25 @@ Lemma nth_order_vec_pos {X : Type} {n} {v : Vector.t X n} {i j} (H : i < n) (H' 
 Proof.
 Admitted.
 
+Lemma nth_order_nth {X : Type} {n} (v : Vector.t X n) i {k} (H : k < n) :
+  proj1_sig (Fin.to_nat i) = k -> Vector.nth_order v H = VectorDef.nth v i.
+Proof.
+  elim: v k i H.
+  - move=> ?. by apply: Fin.case0.
+  - move=> x {}n v IH [|k] i /=.
+    + pattern i; apply: (Fin.caseS' i); first done.
+      move=> i' /=. case: (Fin.to_nat i')=> /=. lia.
+    + move=> ?. pattern i; apply: (Fin.caseS' i); first done.
+      move=> i' /=. move E: (Fin.to_nat i') => [m Hm] /= [?].
+      apply: IH. by rewrite E.
+Qed.
+(*
+Lemma nth_order_nth {X : Type} {n} {v : Vector.t X n} {i j} (H : i < n) (H' : j < n) :
+  i = j -> Vector.nth_order v H = Vector.nth v (Fin.of_nat_lt H').
+Proof.
+Admitted.
+*)
+
 Lemma enc_regs_spec v s t :
   eval (substs 0 (rev (Vector.to_list (Vector.map nat_enc v))) s) t ->
   eval (app (enc_regs v) (lams N s)) t.
@@ -369,30 +389,24 @@ Proof.
     move=> c. by rewrite nat_enc_closed.
 Qed.
 
-Lemma enc_nth_spec x v : eval (app (enc_nth x) (enc_regs v)) (nat_enc (vec.vec_pos v x)).
+Lemma enc_nth_spec x v : eval (app (enc_regs v) (enc_nth x)) (nat_enc (Vector.nth v x)).
 Proof.
-  unfold enc_nth. econstructor; [constructor|apply: eval_enc_regs|].
-  rewrite /= subst_lams. apply: enc_regs_spec.
-  rewrite /= Nat.sub_0_r Nat.add_0_r.
+  apply: enc_regs_spec.
   move Ex: (Fin.to_nat x) => [n Hn] /=.
-  move E: (Nat.eqb _ _) => [|].
-  - move=> /Nat.eqb_eq in E. lia.
-  - rewrite /= rev_nth Vector.length_to_list; first lia.
-    rewrite -Vector.to_list_nth_order; [|lia].
-    move=> Hm. rewrite nth_order_map.
-    rewrite -(Fin.of_nat_to_nat_inv x) Ex /=.
-    rewrite (nth_order_vec_pos _ Hn); first lia.
-    by apply: eval_nat_enc.
+  rewrite /= rev_nth Vector.length_to_list; first lia.
+  rewrite -Vector.to_list_nth_order; [|lia].
+  move=> Hm. rewrite nth_order_map.
+  rewrite -(Fin.of_nat_to_nat_inv x) Ex /=.
+  rewrite (@nth_order_nth _ _ _ (Fin.of_nat_lt Hn)) ?Fin.to_nat_of_nat /=; first lia.
+  by apply: eval_nat_enc.
 Qed.
 
 Check vec.vec_change.
 
 (* set nth vector element *)
 Definition enc_replace (x : Fin.t N) : term :=
-  let n := proj1_sig (Fin.to_nat x) in
-  (* \cs.\c. cs (\c1 .. cN.\f.f c1 .. c .. cN ) *)
-  lam (lam (app (var 1) (lams N (
-    lam (apps (var 0) (map var (Vector.to_list (Vector.replace (Vector.map S (rev_vec_seq N)) x (N + 1))))))))).
+  (* \c.\c1 .. cN.\f.f c1 .. c .. cN *)
+  lam (lams N (lam (apps (var 0) (map var (Vector.to_list (Vector.replace (Vector.map S (rev_vec_seq N)) x (N + 1))))))).
 
 Lemma subst_app k s t u : subst (app s t) k u = app (subst s k u) (subst t k u).
 Proof.
@@ -418,9 +432,6 @@ Proof.
   move=> <-. by constructor.
 Qed.
 
-(*
-Lemma asd : (forall i (H : i < n) -> nth = Vector.nth_order v ) -> l = Vector.to_list v.
-*)
 
 Lemma vec_change_replace {X : Type} {n} (v : Vector.t X n) i x :
   vec.vec_change v i x = Vector.replace v i x.
@@ -429,19 +440,6 @@ Admitted.
 
 Opaque vec_seq.
 Opaque Nat.sub.
-
-Lemma nth_order_nth {X : Type} {n} (v : Vector.t X n) {k} (H : k < n) {i} :
-  proj1_sig (Fin.to_nat i) = k -> Vector.nth_order v H = VectorDef.nth v i.
-Proof.
-  elim: v k i H.
-  - move=> ?. by apply: Fin.case0.
-  - move=> x {}n v IH [|k] i /=.
-    + pattern i; apply: (Fin.caseS' i); first done.
-      move=> i' /=. case: (Fin.to_nat i')=> /=. lia.
-    + move=> ?. pattern i; apply: (Fin.caseS' i); first done.
-      move=> i' /=. move E: (Fin.to_nat i') => [m Hm] /= [?].
-      apply: IH. by rewrite E.
-Qed.
 
 Lemma vec_nth_rev_seq n i : VectorDef.nth (rev_vec_seq n) i = n - 1 - proj1_sig (Fin.to_nat i).
 Proof.
@@ -456,13 +454,30 @@ Qed.
 
 Opaque rev_vec_seq.
 
-Lemma enc_replace_spec x v c : eval (apps (enc_replace x) [enc_regs v; nat_enc c]) (enc_regs (Vector.replace v x c)).
+Lemma step_app' s t : eval t t -> step (app (lam s) t) (subst s 0 t).
 Proof.
-  econstructor; [|apply: eval_nat_enc|].
-  - econstructor; [constructor|apply: eval_enc_regs|].
-    rewrite /= subst_lams /= subst_apps /=.
+  move=> /L_facts.eval_iff [_] [?] ->. by constructor.
+Qed.
+
+Lemma steps_app' s t1 t2 : eval t1 t2 -> ARS.star step (app (lam s) t1) (subst s 0 t2).
+Proof.
+  move=> /L_facts.eval_iff [?] [?] ?. subst.
+  apply: ARS.star_trans.
+  - apply: L_facts.star_trans_r. by eassumption.
+  - apply: ARS.starC; last by apply: ARS.starR.
     by constructor.
-  - rewrite subst_app enc_regs_closed subst_lams.
+Qed.
+
+Lemma enc_replace_spec x v c t :
+  eval t (nat_enc c) ->
+  eval (app (enc_regs v) (app (enc_replace x) t)) (enc_regs (Vector.replace v x c)).
+Proof.
+  move=> Hc.
+  apply: steps_eval.
+  - apply: L_facts.star_trans_r.
+    apply: steps_app'.
+    by eassumption.
+  - rewrite subst_lams.
     apply: enc_regs_spec.
     rewrite /= subst_apps substs_apps. apply: eval_lam'.
     rewrite /=. congr lam. congr fold_left.
@@ -473,14 +488,12 @@ Proof.
     rewrite !(Vector.nth_map _ _ _ _ eq_refl) /=.
     have [?|?] := Fin.eq_dec i x.
     + subst i. rewrite !Vector.nth_replace_eq.
-      have /Nat.eqb_neq -> /=: S (num_regs + 1) <> S (S (num_regs + 1)) by lia.
-      have /Nat.eqb_eq ->: num_regs + 1 = S (num_regs + 0) by lia.
+      have /Nat.eqb_eq ->: S (num_regs + 1) = S (S (num_regs + 0)) by lia.
       rewrite substs_closed; last done.
       by apply: nat_enc_closed.
     + rewrite !Vector.nth_replace_neq; [done..|].
       rewrite (Vector.nth_map _ _ _ _ eq_refl).
       rewrite vec_nth_rev_seq /=.
-      have /Nat.eqb_neq -> /=: N - 1 - proj1_sig (Fin.to_nat i) <> S (num_regs + 1) by lia.
       have /Nat.eqb_neq -> /=: N - 1 - proj1_sig (Fin.to_nat i) <> S (num_regs + 0) by lia.
       move Ei: (Fin.to_nat i) => [n Hn] /=.
       rewrite rev_nth Vector.length_to_list; first lia.
@@ -492,13 +505,12 @@ Qed.
 Print Assumptions enc_replace_spec.
 
 Definition enc_inc (x : Fin.t N) : term :=
-  let n := proj1_sig (Fin.to_nat x) in
-  lam (app (var 0) (lams N (app (lam (lam (apps (var 0) (map var ((seq 2 n) ++ [1] ++ seq (n+2) (N-n-2)))))) (app nat_succ (var n))))).
+  (* \cs. cs ((replace x) (nat_succ (cs (nth x)))) *)
+  lam (app (var 0) (app (enc_replace x) (app nat_succ (app (var 0) (enc_nth x))))).
 
 Lemma subst_ren n t k s : closed s -> subst (ren (fun x => n + x) t) (n + k) s = ren (fun x => n + x) (subst t k s).
 Proof.
 Admitted.
-
 
 Lemma subst_var_eq x s : subst (var x) x s = s.
 Proof.
@@ -510,30 +522,40 @@ Proof.
   by move=> /= /Nat.eqb_neq ->.
 Qed.
 
+Lemma enc_replace_closed x : closed (enc_replace x).
+Proof.
+Admitted.
 
+Lemma nat_succ_closed : closed nat_succ.
+Proof.
+Admitted.
+
+Lemma nat_succ_spec t c : eval t (nat_enc c) -> eval (app nat_succ t) (nat_enc (S c)).
+Proof.
+Admitted.
+
+Lemma enc_nth_closed x : closed (enc_nth x).
+Proof.
+Admitted.
+
+Opaque enc_regs enc_replace nat_succ enc_nth.
 
 Lemma enc_inc_spec (x : Fin.t N) (v : Vector.t nat N) :
-  eval (app (enc_inc x) (enc_regs v)) (enc_regs (vec.vec_change v x (S (vec.vec_pos v x)))).
+  eval (app (enc_inc x) (enc_regs v)) (enc_regs (Vector.replace v x (S (Vector.nth v x)))).
 Proof.
   rewrite /enc_inc. econstructor; [constructor|apply: eval_enc_regs|].
-  rewrite /= subst_lams /= subst_apps /= map_map.
-  rewrite /enc_regs. econstructor; [constructor|apply: eval_lams_N|].
-  rewrite subst_apps /=. (* apply: eval_apps_lams'. 
-  - by rewrite length_map Vector.length_to_list.
-  - apply /Forall_map. apply /Vector.to_list_Forall.
-    apply /Vector.Forall_map.
-    apply /Vector.Forall_nth=> y. rewrite nat_enc_closed.
-    apply: eval_nat_enc.
-  - apply /Forall_map. apply /Vector.to_list_Forall.
-    apply /Vector.Forall_map.
-    apply /Vector.Forall_nth=> y. rewrite nat_enc_closed. apply: nat_enc_closed.
-  - 
-    *)
+  rewrite /= enc_replace_closed nat_succ_closed enc_nth_closed.
+  apply: enc_replace_spec. apply: nat_succ_spec.
+  by apply: enc_nth_spec.
+Qed.
+
+Lemma enc_inc_closed x : closed (enc_inc x).
+Proof.
 Admitted.
 
 Opaque enc_inc.
 
-Definition enc_instr i (instr : mm_instr (Fin.t N)) : term :=
+Definition enc_instr '(i, instr) : term :=
   match instr with
   | MM.mm_inc x =>
       (* \cs.(\cs'.\f.f (pi (S i)) cs') (inc x cs) *)
@@ -630,16 +652,17 @@ Proof.
   case E: (i - length P) => [|?]; lia.
 Qed.
 
-Lemma enc_inc_closed x : closed (enc_inc x).
-Proof.
-Admitted.
-
 Opaque enc_pair pi_succ pi enc_regs.
 
 Axiom FF : False.
 
+Lemma vec_pos_nth {X : Type} {n} {v : Vector.t X n} {i} :
+  vec.vec_pos v i = Vector.nth v i.
+Proof.
+Admitted.
+
 Lemma mma_step_sim (instr : mm_instr (Fin.t N)) (p q : mm_state N) :
-  mma_sss instr p q -> eval (app (enc_instr (fst p) instr) (enc_regs (snd p))) (enc_state q).
+  mma_sss instr p q -> eval (app (enc_instr (fst p, instr)) (enc_regs (snd p))) (enc_state q).
 Proof.
   case.
   - (* INC *)
@@ -647,7 +670,8 @@ Proof.
     econstructor; [by constructor|by apply: eval_enc_regs|].
     rewrite /= pi_addr_closed enc_inc_closed.
     econstructor; [by constructor|by apply: enc_inc_spec|].
-    rewrite /= pi_addr_closed. by constructor.
+    rewrite /= pi_addr_closed vec_pos_nth vec_change_replace.
+    by constructor.
   - (* DEC *)
     destruct FF.
   - (* JUMP *)
@@ -657,7 +681,7 @@ Qed.
 (* \cs.\f.\run.cs *)
 Definition enc_halt := lam (lam (lam (var 2))).
 (* \i.\cs.i (halt :: P) cs *)
-Definition enc_step := lam (lam (apps (var 1) (enc_halt :: map enc_instr P ++ [var 0]))).
+Definition enc_step := lam (lam (apps (var 1) (enc_halt :: map enc_instr (combine (seq 1 (length P)) P) ++ [var 0]))).
 (* \(i, cs).(i, cs) (\i.\cs.step i cs) (\i'.\cs'.\run.run i' cs' run) *)
 Definition enc_run := lam (apps (var 0) [lam (lam (apps enc_step [var 1; var 0]));
   lam (lam (lam (apps (var 0) [var 2; var 1; var 0])))]).
@@ -679,7 +703,6 @@ Lemma enc_run_spec' {i v t} : eval (app (app enc_run (enc_state (i, v))) enc_run
   exists cs, t = enc_regs cs.
 Proof.
 Admitted.
-
 
 Lemma closed_enc_run : closed enc_run.
 Proof.

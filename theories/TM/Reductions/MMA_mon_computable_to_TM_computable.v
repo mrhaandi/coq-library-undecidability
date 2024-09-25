@@ -24,8 +24,8 @@ Require Import Undecidability.Shared.Libs.PSL.FiniteTypes.FinTypesDef.
 From Undecidability.Shared.Libs.PSL Require Import CompoundFinTypes.
 Require Import Undecidability.Shared.Libs.PSL.EqDec.
 
-From Undecidability Require Shared.deterministic_simulation.
-Module Sim := deterministic_simulation.
+From Undecidability Require Shared.simulation.
+Module Sim := simulation.
 
 Require Import List Lia PeanoNat Compare_dec Relations.
 Import ListNotations.
@@ -490,7 +490,7 @@ Proof.
       by move=> [_ []].
   - move=> v q ts /TM_facts.TM_eval_iff [n HPn].
     apply: H3M. apply /sss_terminates_iff.
-    apply /(Sim.terminates_reflection (step2_det M) (fstep M H1M) (step1_intro M) sync_init).
+    apply /(Sim.terminates_reflection (Sim.deterministic_uniformly_confluent _ (step2_det M)) (fstep M H1M) (step1_intro M) sync_init).
     move: n HPn => [|n]. { done. }
     rewrite /= P_init. by apply: terminates2I.
 Qed.
