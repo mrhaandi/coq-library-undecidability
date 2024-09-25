@@ -1,9 +1,10 @@
-Require Import List PeanoNat Lia.
+Require Import List PeanoNat Lia Relations.
 Import ListNotations.
 
 From Undecidability Require Import MinskyMachines.MMA L.L Shared.Libs.DLW.Code.sss.
 From Undecidability Require MinskyMachines.MM.
 Import MM (mm_instr).
+Require Import Undecidability.Shared.simulation.
 
 Require Import ssreflect.
 
@@ -720,6 +721,36 @@ Admitted.
 Lemma reflection p cs : eval (app (app enc_run (enc_state p)) enc_run) (enc_regs cs) ->
   exists k, sss_steps (@mma_sss N) (1, P) k p (0, cs).
 Proof.
+
+Admitted.
+
+Lemma out_code_stuck (p : nat * Vector.t nat N) : 
+  subcode.out_code (fst p) (1, P) ->
+  stuck (sss_step (@mma_sss N) (1, P)) p.
+Proof.
+  by move=> /subcode.in_out_code Hp ? /sss_step_in_code.
+Qed.
+
+Definition sync p t := t = app (app enc_run (enc_state p)) enc_run.
+
+Lemma sss_step_transport p q s :
+  sss_step (@mma_sss N) (1, P) p q ->
+  sync p s  ->
+  exists t, clos_trans term step s t /\ sync q t.
+Proof.
+Admitted.
+
+Lemma stuck_sss_step_transport p s : 
+  stuck (sss_step (@mma_sss N) (1, P)) p ->
+  sync p s -> terminates step s.
+Proof.
+Admitted.
+
+Lemma sss_step_dec p :
+(exists q,
+sss_step (@mma_sss N) (1, P) p q) \/
+stuck (sss_step (@mma_sss N) (1, P)) p.
+Proof.
 Admitted.
 
 End MMA_HALTING_to_HaltLclosed.
@@ -728,8 +759,38 @@ Opaque enc_run enc_state.
 
 Require Import Undecidability.Synthetic.Definitions.
 
+
 (* Halting problem for weak call-by-value lambda-calculus *)
 Definition HaltLclosed (s : {s : term | closed s}) := exists t, eval (proj1_sig s) t.
+
+Lemma MMA_HALTING_terminates_sss_step_iff n (P : list (mm_instr (Fin.t (S n)))) (v : Vector.t nat (S n)) :
+  MMA_HALTING (P, v) <-> terminates (sss_step (@mma_sss (S n)) (1, P)) (1, v).
+Proof.
+  rewrite /MMA_HALTING /sss_terminates /sss_output /terminates.
+  split.
+  - move=> [st' [[k Hk] Hst']]. exists st'. split.
+    + unfold sss_compute in Hk. cbn in Hk.
+      elim: k (1, v) Hk.
+      * move=> ? /sss_steps_0_inv <-. by apply: rt_refl.
+      * move=> k IH st /sss_steps_S_inv' [?] [??].
+        apply: rt_trans.
+        ** apply: rt_step. by eassumption.
+        ** by apply: IH.
+    + apply: out_code_stuck. by eassumption.
+  - admit.
+Admitted.
+
+Lemma steps_stuck_eval s t :
+  closed s ->
+  clos_refl_trans term L_facts.step s t ->
+  stuck L_facts.step t ->
+  eval s t.
+Proof.
+Admitted.
+
+Lemma eval_steps_stuck s t : eval s t -> terminates L_facts.step s.
+Proof.
+Admitted.
 
 Lemma reduction n : @MMA_HALTING (S n) ⪯ HaltLclosed.
 Proof.
@@ -737,13 +798,32 @@ Proof.
   - intros [P v]. exists (apps (enc_run P) [enc_state P (1, v); enc_run P]).
     intros u k. cbn. by rewrite !closed_enc_run closed_enc_state.
   - intros [P v]. split.
-    + intros [q Hq]. exists (enc_regs (snd q)). cbn in *.
-      now apply transport. (* simulation *)
-    + intros [t Ht]. cbn in Ht.
-      assert (H't := enc_run_spec' Ht). destruct H't as [cs ?]. subst.
-      exists (0, cs). split.
-      * now apply reflection. (* inverse simulation *)
-      * cbn. lia.
+    + intros ?%MMA_HALTING_terminates_sss_step_iff.
+      destruct (@terminates_transport _ _
+        (sss_step (@mma_sss (S n)) (1, P))
+        L_facts.step
+        (sync P)
+        (@sss_step_transport _ P)
+        (@stuck_sss_step_transport _ P)
+        (1, v)
+        _
+        eq_refl
+        H) as [t [H1t H2t]].
+      exists t. cbn. eapply steps_stuck_eval; [|assumption..].
+      intros u k. cbn. by rewrite !closed_enc_run closed_enc_state.
+    + intros [t Ht%eval_steps_stuck]. cbn in Ht.
+      apply MMA_HALTING_terminates_sss_step_iff.
+      apply (@terminates_reflection _ _ 
+        (sss_step (@mma_sss (S n)) (1, P))
+        L_facts.step
+        (sync P)
+        L_facts.uniform_confluence
+        (@sss_step_transport _ P)
+        (@sss_step_dec _ P)
+        (1, v)
+        _
+        eq_refl
+        Ht).
 Qed.
 
 Print Assumptions reduction.
