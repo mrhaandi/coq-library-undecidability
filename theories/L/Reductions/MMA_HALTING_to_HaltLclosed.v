@@ -9,6 +9,11 @@ Require Import Undecidability.Shared.simulation.
 Require Undecidability.MinskyMachines.Reductions.MMA_computable_to_MMA_mon_computable.
 Require Import ssreflect.
 
+Require Undecidability.L.Util.L_facts.
+Import L_facts (step).
+
+Require Undecidability.L.Prelim.ARS.
+
 Unset Implicit Arguments.
 
 (* general facts *)
@@ -136,10 +141,7 @@ Proof.
   - move=> ? IH ? /=. by rewrite IH.
 Qed.
 
-Require Undecidability.L.Util.L_facts.
-Import L_facts (step).
 
-Require Undecidability.L.Prelim.ARS.
 
 (*
 Lemma substs_lam s k t : subst ts (lam s) = lam (subst s (S k) t).
@@ -540,7 +542,7 @@ Proof.
   elim.
   - move=> > ?. apply: t_step. by apply: L_facts.stepAppR.
   - move=> *. apply: t_trans; by eassumption.
-Admitted.
+Qed.
 
 Lemma t_steps_app_r s1 s2 t : clos_trans term step s1 s2 -> clos_trans term step (app s1 t) (app s2 t).
 Proof.
@@ -746,17 +748,21 @@ Qed.
 
 Opaque enc_pair pi_succ pi enc_regs.
 
-Lemma star_rt_steps s t : ARS.star step s t -> clos_refl_trans term step s t.
+Lemma star_rt_steps_iff s t : ARS.star step s t <-> clos_refl_trans term step s t.
 Proof.
-  elim=> *.
-  - by apply: rt_refl.
-  - by apply: rt_trans; [apply: rt_step|]; eassumption.
+  split.
+  - elim=> *.
+    + by apply: rt_refl.
+    + by apply: rt_trans; [apply: rt_step|]; eassumption.
+  - move=> /clos_rt_rt1n_iff. elim=> *.
+    + by apply: ARS.starR.
+    + apply: ARS.starC; by eassumption.
 Qed.
 
 Lemma eval_rt s t : eval s t -> clos_refl_trans term step s t.
 Proof.
   move=> /L_facts.eval_iff [?] [?] ?. subst.
-  by apply: star_rt_steps.
+  by apply /star_rt_steps_iff.
 Qed.
 
 Definition enc_recurse :=
@@ -981,17 +987,69 @@ Proof.
   by apply: MMA_computable_to_MMA_mon_computable.sss_terminates_iff.
 Qed.
 
+Lemma closed_app s t : closed (app s t) -> closed s /\ closed t.
+Proof.
+  move=> H. split=> k u; by move: (H k u)=> [].
+Qed.
+
+Lemma closed_step {s t} :
+  step s t ->
+  closed s ->
+  closed t.
+Proof.
+  elim.
+  - admit.
+  - move=> > _ IH /closed_app [H1 H2] k u /=. congr app; first done.
+    by apply: IH.
+  - 
+Admitted.
+
+Lemma closed_rt_step {s t} :
+  clos_refl_trans term step s t ->
+  closed s ->
+  closed t.
+Proof.
+  elim; by eauto using closed_step.
+Qed.
+
+
+
+Lemma closed_stuck_lambda t :
+  closed t ->
+  stuck step t ->
+  L_facts.lambda t.
+Proof.
+  elim: t.
+  - move=> n /(_ n (var (S n))) /=.
+    rewrite Nat.eqb_refl=> - []. lia.
+  - move=> ? IH1 ? IH2 /closed_app [/IH1]. admit.
+  - move=> *. by eexists.
+Admitted.
+
 Lemma steps_stuck_eval s t :
   closed s ->
-  clos_refl_trans term L_facts.step s t ->
-  stuck L_facts.step t ->
+  clos_refl_trans term step s t ->
+  stuck step t ->
   eval s t.
 Proof.
-Admitted.
+  move=> Hs Hst Ht. apply /L_facts.eval_iff. split.
+  - by apply /star_rt_steps_iff.
+  - apply: closed_stuck_lambda; last done.
+    by apply: (closed_rt_step Hst).
+Qed.
+
+Lemma stuck_lam s : stuck step (lam s).
+Proof.
+  move=> t H. by inversion H.
+Qed.
 
 Lemma eval_steps_stuck s t : eval s t -> terminates L_facts.step s.
 Proof.
-Admitted.
+  move=> /L_facts.eval_iff [?] [?] ?. subst.
+  eexists. split.
+  - apply /star_rt_steps_iff. by eassumption.
+  - by apply: stuck_lam.
+Qed.
 
 Lemma reduction n : @MMA_HALTING (S n) ⪯ HaltLclosed.
 Proof.
