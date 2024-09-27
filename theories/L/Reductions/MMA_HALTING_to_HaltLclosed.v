@@ -1083,7 +1083,7 @@ Proof.
   by apply: enc_recurse_spec.
 Qed.
 
-Lemma enc_halt_spec (p : mm_state N) : fst p < 1 \/ S (length P) <= fst p ->
+Lemma enc_run_spec_out_code (p : mm_state N) : fst p < 1 \/ S (length P) <= fst p ->
   clos_refl_trans _ step (apps enc_run [pi (addr (fst p)); enc_regs (snd p); enc_run]) (enc_regs (snd p)).
 Proof.
   move=> Hp. rewrite /enc_run.
@@ -1094,16 +1094,8 @@ Proof.
   apply: rt_trans.
   { apply: rt_steps_app_r. rewrite /=. autorewrite with subst.
     rewrite (addr_spec_out_code Hp). do 2 apply: rt_steps_app_r. by apply: enc_step_0_spec. }
-
-  apply: rt_trans.
-  { do 2 apply: rt_steps_app_r. rewrite /enc_halt. by apply: eval_rt_steps_subst. }
-  apply: rt_trans.
-  
-  
-   by apply: eval_rt_steps_subst. }
-  
-  
-Admitted.
+  by apply: enc_halt_spec.
+Qed.
 
 Lemma enc_run_spec' {i v t} : eval (apps enc_run [pi (addr i); enc_regs v; enc_run]) t ->
   exists cs, t = enc_regs cs.
@@ -1140,7 +1132,7 @@ Lemma stuck_sss_step_transport p s :
 Proof.
   move=> /MMA_computable_to_MMA_mon_computable.out_code_iff Hp ->.
   exists (enc_regs (snd p)). split.
-  - by apply: enc_halt_spec.
+  - by apply: enc_run_spec_out_code.
   - move=> t. intros H. by inversion H.
 Qed.
 
