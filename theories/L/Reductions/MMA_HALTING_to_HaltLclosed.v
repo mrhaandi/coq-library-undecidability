@@ -1,4 +1,4 @@
-Require Import List PeanoNat Lia Relations.
+Require Import List PeanoNat Lia Relations Transitive_Closure.
 Import ListNotations.
 
 From Undecidability Require Import MinskyMachines.MMA L.L Shared.Libs.DLW.Code.sss.
@@ -162,6 +162,12 @@ Proof.
   - move=> ? IH ? /=. by rewrite IH.
 Qed.
 
+Lemma substs_lams n s k ts : substs k ts (lams n s) = lams n (substs (n + k) ts s).
+Proof.
+  elim: n k; first done.
+  move=> n IH k /=. by rewrite IH Nat.add_succ_r.
+Qed.
+
 Lemma substs_closed k ts t : closed t -> substs k ts t = t.
 Proof.
   move=> /L_facts.closed_dcl.
@@ -214,6 +220,15 @@ Proof.
       rewrite Nat.add_0_r -length_rev.
       rewrite substs_subst; [done|by apply: Forall_rev|].
       by apply ARS.starR.
+Qed.
+
+Lemma steps_apps_lams' n (ts : list term) s :
+  n = length ts ->
+  Forall (fun t' => eval t' t') ts ->
+  Forall closed ts ->
+  ARS.star step (apps (lams n s) ts) (substs 0 (rev ts) s).
+Proof.
+  move=> ->. by apply: steps_apps_lams.
 Qed.
 
 Lemma steps_eval t1 t2 t3 : ARS.star step t1 t2 -> eval t2 t3 -> eval t1 t3.
@@ -1104,7 +1119,8 @@ Admitted.
 
 Lemma closed_enc_run : closed enc_run.
 Proof.
-Admitted.
+  move=> k u. rewrite /enc_run /=. by autorewrite with subst.
+Qed.
 
 Lemma out_code_stuck (p : nat * Vector.t nat N) : 
   subcode.out_code (fst p) (1, P) <->
@@ -1163,6 +1179,15 @@ Lemma MMA_HALTING_terminates_sss_step_iff n (P : list (mm_instr (Fin.t (S n)))) 
 Proof.
   by apply: MMA_computable_to_MMA_mon_computable.sss_terminates_iff.
 Qed.
+
+(*
+Lemma sss_terminates_iff {n s P} : sss_terminates (@mma_sss n) P s <-> terminates (sss_step (@mma_sss n) P) s.
+Proof.
+  split.
+  - move=> [t] [/MMA_computable_to_MMA_mon_computable.sss_compute_iff ? /out_code_iff ?]. by exists t.
+  - move=> [t] [/sss_compute_iff ? /out_code_iff ?]. by exists t.
+Qed.
+*)
 
 Lemma closed_app s t : closed (app s t) -> closed s /\ closed t.
 Proof.
@@ -1298,23 +1323,155 @@ Qed.
 
 Print Assumptions reduction.
 
+(* apps (enc_regs (Vector.const 0 (1 + k + n))) (Vector.to_list (Vector.map (fun x => enc_replace (Fin.L n (Fin.FS x))) (rev_vec_seq k)))*)
+Definition enc_set_state : term := lam (var 0).
+
+Lemma enc_set_state_closed : closed enc_set_state.
+Proof.
+Admitted.
+
+Opaque enc_run pi enc_set_state enc_nth.
+
+Lemma enc_init_spec {k n} (P : list (mm_instr (Fin.t (1 + k + n)))) (v : Vector.t nat k) :
+  clos_refl_trans _ step
+    (Vector.fold_left (fun (s : term) c => app s (nat_enc c))
+      (lams k (apps (enc_run P) [pi P (addr P 1); enc_set_state; enc_run P; enc_nth (@Fin.F1 (k + n))])) v)
+    (apps (enc_run P) [pi P (addr P 1); enc_regs (Vector.append (Vector.cons nat 0 k v) (Vector.const 0 n)); enc_run P; enc_nth (@Fin.F1 (k + n))]).
+Proof.
+  rewrite Vector.to_list_fold_left.
+  have ->: forall cs t, fold_left (fun s c => app s (nat_enc c)) cs t = apps t (map nat_enc cs).
+  { elim; first done.
+    move=> > IH ? /=. by rewrite IH. }
+  apply: rt_trans.
+  { apply /star_rt_steps_iff. apply: steps_apps_lams'.
+    - by rewrite length_map Vector.length_to_list.
+    - apply /Forall_map /Forall_forall=> *. by apply: eval_nat_enc.
+    - apply /Forall_map /Forall_forall=> *. by apply: nat_enc_closed. }
+  rewrite substs_apps /=.
+  rewrite !substs_closed; [by auto using enc_run_closed, pi_addr_closed, enc_set_state_closed, enc_nth_closed..|].
+  have ? : clos_refl_trans _ step enc_set_state (enc_regs (Vector.append (Vector.cons nat 0 k v) (Vector.const 0 n))).
+  { destruct FF. }
+  apply: rt_trans.
+  { do 2 apply: rt_steps_app_r. apply: rt_steps_app_l. by eassumption. }
+  by apply: rt_refl.
+Qed.
+
+(* TODO use comb_proc_red *)
+
+Lemma eval_rt_steps_eval s t u : eval s t -> clos_refl_trans _ step s u -> eval u t.
+Proof.
+  move=> /L_facts.eval_iff [+] [s'] ?. subst.
+  move=> + /star_rt_steps_iff.
+  move=> /L_facts.confluence /[apply] - [?] [H1 H2].
+  apply /L_facts.eval_iff.
+  have Hs' : L_facts.lambda (lam s') by eexists.
+  split.
+  - have := L_facts.lam_terminal Hs'.
+    move: H1 H2 => []; first done.
+    by move=> > + _ _ H => /H.
+  - by eexists.
+Qed.
+
+Lemma clos_trans_flip {X : Type} {R : X -> X -> Prop} {x y} : clos_trans _ R x y ->
+  clos_trans _ (fun y x => R x y) y x.
+Proof. by elim; eauto using clos_trans. Qed.
+
+Lemma nat_enc_inj n m : nat_enc n = nat_enc m -> n = m.
+Proof.
+  elim: n m.
+  - by case.
+  - move=> n IH [|m] /=; first done.
+    by move=> [/IH] <-.
+Qed.
+
 Theorem MMA_computable_to_L_computable_closed {k} (R : Vector.t nat k -> nat -> Prop) :
   MMA_computable R -> L_computable_closed R.
 Proof.
   unfold MMA_computable, L_computable_closed.
   move=> [n [P HP]].
-  (* \c1...\cn. run (\f.f pi_1 (\g.g 0 c1 .. ck 0 .. 0)) run (\c'1...\c'n.c'1)) *)
-  pose t_state := lam (apps (var 0) [pi P (addr P 1);
-    lam (apps (var 0) ([nat_enc 0] ++ map var (rev (seq 1 k)) ++ (repeat (nat_enc 0) n)))]).
-  exists (lams (1 + k + n) (apps (enc_run P) [t_state; enc_run P; lams (1 + k + n) (var (k + n))])).
-  assert (H_t_state : closed t_state).
-  { admit. }
+  (* \c1...\ck. run pi_1 ((0...0) (set 1 c1) .. (set k ck)) run (\c'1...\c'n.c'1) *)
+  exists (lams k (apps (enc_run P) [pi P (addr P 1); enc_set_state; enc_run P; enc_nth (@Fin.F1 (k + n))])).
   split.
   - intros u ?.
-    rewrite subst_lams subst_apps !map_cons !closed_enc_run subst_lams H_t_state.
-    now rewrite subst_var_neq; [lia|].
+    rewrite subst_lams subst_apps !map_cons.
+    by rewrite !closed_enc_run pi_addr_closed enc_set_state_closed enc_nth_closed.
   - move=> v. split.
     + move=> m. rewrite HP. split.
-      * intros [c [v' [H1 H2]]]. admit. (* forwards simulation *)
-      * admit. (* backwards simulation *)
-Admitted.
+      * intros [c [v' [H1 H2]]].
+        apply /L_facts.eval_iff. split; last by (case: (m); eexists).
+        apply /star_rt_steps_iff. apply: rt_trans.
+        { by apply: enc_init_spec. }
+        move=> /MMA_computable_to_MMA_mon_computable.sss_compute_iff in H1.
+        have := @clos_refl_trans_transport _ _
+        (sss_step (@mma_sss ((1 + k + n))) (1, P))
+        L_facts.step
+        (sync P)
+        (@sss_step_transport _ P)
+        (1, Vector.append (Vector.cons nat 0 k v) (Vector.const 0 n))
+        _
+        (c, Vector.cons nat m (k + n) v')
+        eq_refl
+        H1.
+        move=> [t [-> Ht]].
+        apply: rt_trans.
+        { apply: rt_steps_app_r. by eassumption. }
+        apply: rt_trans.
+        { apply: rt_steps_app_r. by apply: enc_run_spec_out_code. }
+        apply: eval_rt. by apply: enc_nth_spec.
+      * move=> /eval_rt_steps_eval => /(_ _ (enc_init_spec _ _)).
+        move: (Vector.append _ _)=> {}v /[dup] /eval_steps_stuck H'.
+        have /(@Acc_clos_trans term) := @terminating_Acc _ _ L_facts.uniform_confluence _ H'.
+        have [i Hi] : exists i, 1 = i by eexists.
+        rewrite [in addr P 1]Hi [in (1, v)]Hi.
+        move E: (apps _ _) => t H.
+        elim: H i v E {H' Hi}.
+        move=> {}t IH1 IH2 i v ?. subst t.
+        have [[[j w]]|] := @sss_step_dec (k + n) P (i, v).
+        ** move=> /[dup] Hvw /enc_run_spec /=.
+           move=> /(@t_steps_app_r _ _ (enc_nth (@Fin.F1 (k + n)))).
+           move=> /[dup] /(@clos_trans_clos_refl_trans term) /eval_rt_steps_eval H' + /H'.
+           move=> /clos_trans_flip /IH2 /(_ _ _ eq_refl) /[apply].
+           move=> [c] [v'] [??]. exists c, v'. split; last done.
+           apply: sss_compute_trans; last by eassumption.
+           apply /MMA_computable_to_MMA_mon_computable.sss_compute_iff.
+           by apply: rt_step.
+        ** move=> /[dup] /MMA_computable_to_MMA_mon_computable.out_code_iff /enc_run_spec_out_code H.
+           move=> /[dup] /MMA_computable_to_MMA_mon_computable.out_code_iff H''.
+           move=> /stuck_sss_step_transport => /(_ _ eq_refl) [t] H'.
+           move: H=> /(rt_steps_app_r _ _ (enc_nth (@Fin.F1 (k + n)))).
+           move=> /eval_rt_steps_eval /[apply].
+           have /L_facts.eval_iff [+ [??]] := enc_nth_spec (@Fin.F1 (k + n)) v.
+           move=> /star_rt_steps_iff /eval_rt_steps_eval /[apply].
+           have := eval_nat_enc (Vector.nth v Fin.F1).
+           move=> /L_facts.eval_iff /L_facts.eval_unique + /L_facts.eval_iff => /[apply].
+           move=> /nat_enc_inj <-.
+           exists i, (snd (@Vector.splitat _ 1 (k + n) v)).
+           split; last done.
+           apply /MMA_computable_to_MMA_mon_computable.sss_compute_iff.
+           apply: rt_refl'. congr pair.
+           rewrite [LHS](@MMA_computable_to_MMA_mon_computable.Facts.vec_append_splitat _ 1 (k + n)).
+           by rewrite (Vector.eta v).
+    + move=> o /eval_rt_steps_eval => /(_ _ (enc_init_spec _ _)).
+      move: (Vector.append _ _)=> {}v /[dup] /eval_steps_stuck H'.
+      have /(@Acc_clos_trans term) := @terminating_Acc _ _ L_facts.uniform_confluence _ H'.
+      move: (1) => i.
+      move E: (apps _ _) => t H.
+      elim: H i v E {H'}.
+      move=> {}t IH1 IH2 i v ?. subst t.
+      have [[[j w]]|] := @sss_step_dec (k + n) P (i, v).
+      * move=> /enc_run_spec /=.
+        move=> /(@t_steps_app_r _ _ (enc_nth (@Fin.F1 (k + n)))).
+        move=> /[dup] /(@clos_trans_clos_refl_trans term) /eval_rt_steps_eval H' + /H'.
+        by move=> /clos_trans_flip /IH2 /(_ _ _ eq_refl) /[apply].
+      * move=> /[dup] /MMA_computable_to_MMA_mon_computable.out_code_iff /enc_run_spec_out_code H.
+        move=> /stuck_sss_step_transport => /(_ _ eq_refl) [t] H'.
+        move: H=> /(rt_steps_app_r _ _ (enc_nth (@Fin.F1 (k + n)))).
+        move=> /eval_rt_steps_eval /[apply].
+        have /L_facts.eval_iff [+ [??]] := enc_nth_spec (@Fin.F1 (k + n)) v.
+        move=> /star_rt_steps_iff /eval_rt_steps_eval /[apply].
+        have := eval_nat_enc (Vector.nth v Fin.F1).
+        move=> /L_facts.eval_iff /L_facts.eval_unique + /L_facts.eval_iff => /[apply] <-.
+        by eexists.
+Qed.
+
+Print Assumptions MMA_computable_to_L_computable_closed.
