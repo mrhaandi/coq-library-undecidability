@@ -1136,8 +1136,6 @@ Proof.
   - move=> t. intros H. by inversion H.
 Qed.
 
-Print Assumptions stuck_sss_step_transport.
-
 Lemma sss_step_dec p :
   (exists q, sss_step (@mma_sss N) (1, P) p q) \/ stuck (sss_step (@mma_sss N) (1, P)) p.
 Proof.
@@ -1171,24 +1169,56 @@ Proof.
   move=> H. split=> k u; by move: (H k u)=> [].
 Qed.
 
-Lemma closed_step {s t} :
-  step s t ->
-  closed s ->
-  closed t.
-Proof.
-  elim.
-  - admit.
-  - move=> > _ IH /closed_app [H1 H2] k u /=. congr app; first done.
-    by apply: IH.
-  - 
-Admitted.
-
 Lemma closed_rt_step {s t} :
   clos_refl_trans term step s t ->
   closed s ->
   closed t.
 Proof.
-  elim; by eauto using closed_step.
+  elim; by eauto using L_facts.closed_step.
+Qed.
+
+Lemma apps_intro t : closed t -> exists s ts, t = apps (lam s) ts.
+Proof.
+Admitted.
+
+Fixpoint term_size t : nat :=
+  match t with
+  | var _ => 1
+  | app s t => 1 + term_size s + term_size t
+  | lam s => 1 + term_size s
+  end.
+
+Lemma not_closed_var n : closed (var n) -> False.
+Proof.
+  move=> /(_ n (var (S n))) /=.
+  rewrite Nat.eqb_refl=> - []. lia.
+Qed.
+
+Lemma closed_not_lambda_step s :
+  closed s ->
+  (not (L_facts.lambda s)) ->
+  exists t, step s t.
+Proof.
+  elim /(Nat.measure_induction _ term_size) : s.
+  move=> [n|{}s t|?].
+  - by move=> ? /not_closed_var.
+  - move=> IH /closed_app [].
+    move: s t IH=> [?|??|?].
+    + by move=> ?? /not_closed_var.
+    + move=> t /[apply] IH _ _.
+      case: IH.
+      * rewrite /=. lia.
+      * by case.
+      * move=> *. eexists. apply: L_facts.stepAppL. by eassumption.
+    + move=> [?|??|?].
+      * by move=> ?? /not_closed_var.
+      * move=> IH ? /IH {}IH _.
+        case: IH.
+        ** rewrite /=. lia.
+        ** by case.
+        ** move=> *. eexists. apply: L_facts.stepAppR. by eassumption.
+      * move=> *. eexists. by constructor.
+  - move=> _ _ H. exfalso. apply: H. by eexists.
 Qed.
 
 Lemma closed_stuck_lambda t :
@@ -1196,12 +1226,16 @@ Lemma closed_stuck_lambda t :
   stuck step t ->
   L_facts.lambda t.
 Proof.
-  elim: t.
-  - move=> n /(_ n (var (S n))) /=.
-    rewrite Nat.eqb_refl=> - []. lia.
-  - move=> ? IH1 ? IH2 /closed_app [/IH1]. admit.
+  move=> /closed_not_lambda_step.
+  move: t=> [?|??|?].
+  - case.
+    + by case.
+    + by move=> t ? /(_ t).
+  - case.
+    + by case.
+    + by move=> t ? /(_ t).
   - move=> *. by eexists.
-Admitted.
+Qed.
 
 Lemma steps_stuck_eval s t :
   closed s ->
