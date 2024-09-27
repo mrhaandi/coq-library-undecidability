@@ -1232,7 +1232,10 @@ Fixpoint fin_seq n : list (Fin.t n) :=
 Lemma rt_steps_apps_r s ts t :
   clos_refl_trans _ step s t -> clos_refl_trans _ step (apps s ts) (apps t ts).
 Proof.
-Admitted.
+  elim: ts s t; first done.
+  move=> ?? IH ??? /=. apply: IH.
+  by apply: rt_steps_app_r.
+Qed.
 
 Opaque Vector.to_list Fin.L.
 
@@ -1296,7 +1299,7 @@ Definition enc_set_state k n : term :=
   apps (enc_regs (Vector.const 0 (1 + k + n)))
   (map (fun '(x, i) => app (enc_replace (Fin.L n (Fin.FS x))) (var i)) (combine (fin_seq k) (rev (seq 0 k)))).
 
-Opaque enc_replace.
+Opaque enc_replace Vector.to_list.
 
 Lemma substs_enc_set_state_aux k n (v : Vector.t nat k) :
   clos_refl_trans _ step
@@ -1305,29 +1308,39 @@ Lemma substs_enc_set_state_aux k n (v : Vector.t nat k) :
 Proof.
   rewrite /enc_set_state.
   move: (Vector.const 0 (1 + k + n))=> cs.
-  have : Forall (fun '(x, i) => proj1_sig (Fin.to_nat x) = k - 1 - i) (combine (fin_seq k) (rev (seq 0 k))).
-  { admit. }
-  have : length (rev (seq 0 k)) = length (Vector.to_list v).
-  { admit. }
-  have : length (fin_seq k) = length (rev (seq 0 k)).
-  { admit. }
-  move: (fin_seq k)=> xs.
-  (* NO, substs list (rev (map nat_enc (VectorDef.to_list v))) needs to be unchanged! *)
-  BREAK
-  move: (Vector.to_list v)=> c's.
-  move: (rev (seq 0 k))=> js.
   rewrite substs_apps substs_closed; first by apply: enc_regs_closed.
-  elim: c's xs js cs {v}.
-  - by move=> [|??] [|??] /= *; [apply: rt_refl..|].
-  - move=> c c's IH [|x ?] [|j?] cs; [done..|].
-    move=> [/IH {}IH] [/IH {}IH] /=.
-    move=> /Forall_cons_iff [?] /IH {}IH.
-    apply: rt_trans.
-    { apply: rt_steps_apps_r. rewrite substs_closed; first by apply: enc_replace_closed.
-      apply: eval_rt. apply: enc_replace_spec.
-      have ->: (nth j (rev (map nat_enc c's) ++ [nat_enc c]) (var j)) = nat_enc c by admit.
-      by apply: eval_nat_enc. }
-Admitted.
+    have ->: forall xs, map (substs 0 (rev (map nat_enc (VectorDef.to_list v))))
+      (map (fun '(x, i) => app (enc_replace (Fin.L n (Fin.FS x))) (var i))
+      (combine xs (rev (seq 0 k)))) = 
+      map (fun '(x, c) => app (enc_replace (Fin.L n (Fin.FS x))) (nat_enc c))
+      (combine xs (Vector.to_list v)).
+  { elim: v; first by move=> ? [|??].
+    move=> c k' v IH ? [|x xs]; first done.
+    have ->: seq 0 (S k') = seq 0 (k' + 1).
+    { congr seq. lia. }
+    rewrite seq_app rev_app_distr Vector.to_list_cons /=. congr cons.
+    - rewrite substs_closed; first by apply: enc_replace_closed.
+      congr app. rewrite app_nth2 length_rev length_map Vector.length_to_list; first done.
+      by rewrite Nat.sub_diag.
+    - rewrite -IH. apply: map_ext_in=> s /in_map_iff [[y j]] [<-].
+      move=> /(@in_combine_r (Fin.t _) nat) /in_rev.
+      rewrite rev_involutive=> /in_seq ? /=.
+      rewrite !substs_closed; [by apply: enc_replace_closed..|].
+      congr app. rewrite app_nth1; last done.
+      rewrite length_rev length_map Vector.length_to_list. lia. }
+  
+  move: (fin_seq k)=> xs.
+  move: (Vector.to_list v)=> c's.
+  elim: xs c's cs {v}.
+  - move=> *. by apply: rt_refl.
+  - move=> x xs IH [|c' c's].
+    + move=> *. by apply: rt_refl.
+    + move=> cs /=. apply: rt_trans.
+      { apply: rt_steps_apps_r. apply: eval_rt. apply: enc_replace_spec. by apply: eval_nat_enc. }
+      by apply: IH.
+Qed.
+
+Print Assumptions substs_enc_set_state_aux.
 
 Lemma vec_eq_nth {A : Type} (n : nat) (v1 v2 : VectorDef.t A n) :
   (forall p : Fin.t n, Vector.nth v1 p = Vector.nth v2 p) <-> v1 = v2.
@@ -1344,6 +1357,7 @@ Lemma substs_enc_set_state k n v :
 Proof.
   have := substs_enc_set_state_aux k n v.
   congr clos_refl_trans. congr enc_regs.
+
 (*
   elim: v; first done.
 
