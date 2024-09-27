@@ -287,16 +287,6 @@ Proof.
   move=> ->. by apply: eval_apps_lams.
 Qed.
 
-Lemma pi_succ_spec i : eval (app pi_succ (pi (addr i))) (pi (addr (S i))).
-Proof.
-  econstructor; [constructor|apply: eval_pi|].
-  rewrite subst_apps /= map_map.
-  rewrite /pi /addr. move: (length P) => length.
-  have [H|[H|H]]: S i <= length \/ i = length \/ S i > length by lia.
-  - have ->: i - length = 0 by lia.
-    have ->: S i - length = 0 by lia.
-Admitted.
-
 Fixpoint vec_seq i n : Vector.t nat n :=
   match n with
   | 0 => Vector.nil _
@@ -308,58 +298,6 @@ Fixpoint rev_vec_seq n : Vector.t nat n :=
   | 0 => Vector.nil _
   | S n => Vector.cons _ n _ (rev_vec_seq n)
   end.
-
-Lemma nth_of_list {X : Type} (d : X) (l : list X) i :
-  Vector.nth (Vector.of_list l) i = nth (proj1_sig (Fin.to_nat i)) l d.
-Proof.
-Admitted.
-
-
-Lemma vec_nth_rev_seq_list k n i :
-  Vector.nth (Vector.of_list (rev (seq k n))) i = k + n - 1 - proj1_sig (Fin.to_nat i).
-Proof.
-  rewrite (nth_of_list 0).
-  case: (Fin.to_nat i) => [m Hm] /=.
-  rewrite length_rev in Hm.
-  rewrite rev_nth; first done.
-  rewrite length_seq in Hm.
-  rewrite seq_nth length_seq; lia.
-Qed.
-
-(*
-Lemma vec_nth_rev_seq k n i :
-  Vector.nth (Vector.rev (vec_seq k n)) i = k + n - 1 - proj1_sig (Fin.to_nat i).
-Proof.
-  elim: n k i.
-  - move=> ?. by apply: Fin.case0.
-  - move=> n IH k /=.
-Admitted.
-*)
-(*
-
-  Vector.to_list_rev:
-forall (A : Type) (n : nat) (v : VectorDef.t A n),
-VectorDef.to_list (VectorDef.rev v) = rev (VectorDef.to_list v)
-
-
-  Search Vector.to_list.
-   Search Vector.rev.
-    change (S n) with (1 + n).
-    move=> i.
-    rewrite Vector.rev_cons.
-    pattern i.
-    apply: (Fin.case_L_R' _ i).
-    
-     rewrite Vector.shiftin_nth. Search Vector.nth. Vector.nth_shiftin.
-    rewrite /vec_seq.
-    pattern i. apply: (Fin.caseS' i).
-    + 
-     first done.
-  Search Vector.nth.
-  Search (nth _ (rev _)).
-  Search (Vector.nth (Vector.rev _)).
-Admitted.
-*)
 
 Opaque vec_seq.
 
@@ -444,11 +382,6 @@ Proof.
   by apply: IH.
 Qed.
 
-Lemma nth_order_vec_pos {X : Type} {n} {v : Vector.t X n} {i j} (H : i < n) (H' : j < n) :
-  i = j -> Vector.nth_order v H = vec.vec_pos v (Fin.of_nat_lt H').
-Proof.
-Admitted.
-
 Lemma nth_order_nth {X : Type} {n} (v : Vector.t X n) i {k} (H : k < n) :
   proj1_sig (Fin.to_nat i) = k -> Vector.nth_order v H = VectorDef.nth v i.
 Proof.
@@ -461,12 +394,6 @@ Proof.
       move=> i' /=. move E: (Fin.to_nat i') => [m Hm] /= [?].
       apply: IH. by rewrite E.
 Qed.
-(*
-Lemma nth_order_nth {X : Type} {n} {v : Vector.t X n} {i j} (H : i < n) (H' : j < n) :
-  i = j -> Vector.nth_order v H = Vector.nth v (Fin.of_nat_lt H').
-Proof.
-Admitted.
-*)
 
 Lemma enc_regs_spec v s t :
   eval (substs 0 (rev (Vector.to_list (Vector.map nat_enc v))) s) t ->
@@ -715,10 +642,6 @@ Definition enc_inc (x : Fin.t N) : term :=
   (* \cs. cs ((replace x) (nat_succ (cs (nth x)))) *)
   lam (app (var 0) (app (enc_replace x) (app nat_succ (app (var 0) (enc_nth x))))).
 
-Lemma subst_ren n t k s : closed s -> subst (ren (fun x => n + x) t) (n + k) s = ren (fun x => n + x) (subst t k s).
-Proof.
-Admitted.
-
 Lemma subst_var_eq x s : subst (var x) x s = s.
 Proof.
   by rewrite /= Nat.eqb_refl.
@@ -811,11 +734,6 @@ Lemma eval_enc_pair t1 t2 : eval (enc_pair t1 t2) (enc_pair t1 t2).
 Proof.
   constructor.
 Qed.
-
-Lemma vec_fold_right_map {X Y Z : Type} (f : Y -> Z -> Z) (g : X -> Y) {n : nat} (v : Vector.t X n) (z : Z) :
-  Vector.fold_right f (Vector.map g v) z = Vector.fold_right (fun x z => f (g x) z) v z.
-Proof.
-Admitted.
 
 Opaque enc_pair pi_succ pi enc_regs.
 
@@ -1112,24 +1030,10 @@ Proof.
   by apply: enc_halt_spec.
 Qed.
 
-Lemma enc_run_spec' {i v t} : eval (apps enc_run [pi (addr i); enc_regs v; enc_run]) t ->
-  exists cs, t = enc_regs cs.
-Proof.
-Admitted.
-
 Lemma closed_enc_run : closed enc_run.
 Proof.
   move=> k u. rewrite /enc_run /=. by autorewrite with subst.
 Qed.
-
-Lemma out_code_stuck (p : nat * Vector.t nat N) : 
-  subcode.out_code (fst p) (1, P) <->
-  stuck (sss_step (@mma_sss N) (1, P)) p.
-Proof.
-  split.
-  - by move=> /subcode.in_out_code Hp ? /sss_step_in_code.
-  - move=> H.
-Admitted.
 
 Definition sync p t := t = apps enc_run [pi (addr (fst p)); enc_regs (snd p); enc_run].
 
@@ -1201,10 +1105,6 @@ Lemma closed_rt_step {s t} :
 Proof.
   elim; by eauto using L_facts.closed_step.
 Qed.
-
-Lemma apps_intro t : closed t -> exists s ts, t = apps (lam s) ts.
-Proof.
-Admitted.
 
 Fixpoint term_size t : nat :=
   match t with
@@ -1323,19 +1223,44 @@ Qed.
 
 Print Assumptions reduction.
 
-(* apps (enc_regs (Vector.const 0 (1 + k + n))) (Vector.to_list (Vector.map (fun x => enc_replace (Fin.L n (Fin.FS x))) (rev_vec_seq k)))*)
-Definition enc_set_state : term := lam (var 0).
+Fixpoint fin_seq n : list (Fin.t n) :=
+  match n with
+  | 0 => []
+  | S n => Fin.F1 :: map Fin.FS (fin_seq n)
+  end.
 
-Lemma enc_set_state_closed : closed enc_set_state.
+
+(* apps (enc_regs (Vector.const 0 (1 + k + n))) (Vector.to_list (Vector.map (fun x => enc_replace (Fin.L n (Fin.FS x))) (rev_vec_seq k)))*)
+Definition enc_set_state k n : term :=
+  apps (enc_regs (Vector.const 0 (1 + k + n)))
+  (map (fun '(x, i) => app (enc_replace (Fin.L n (Fin.FS x))) (var i)) (combine (rev (fin_seq k)) (seq 0 k))).
+
+Opaque enc_replace.
+
+Lemma substs_enc_set_state k n v :
+  clos_refl_trans _ step
+    (substs 0 (rev (map nat_enc (VectorDef.to_list v))) (enc_set_state k n))
+    (enc_regs (Vector.append (Vector.cons nat 0 k v) (Vector.const 0 n))) .
 Proof.
+  rewrite /enc_set_state substs_apps substs_closed; first by apply: enc_regs_closed.
 Admitted.
+
+Lemma subst_enc_set_state k n m u : subst (enc_set_state k n) (k + m) u = enc_set_state k n.
+Proof.
+  rewrite /enc_set_state subst_apps enc_regs_closed.
+  congr fold_left. rewrite map_map.
+  apply: map_ext_in=> - [x i].
+  rewrite /= enc_replace_closed.
+  move=> /(@in_combine_r (Fin.t k) nat) /in_seq ?.
+  by have /Nat.eqb_neq -> : i <> k + m by lia.
+Qed.
 
 Opaque enc_run pi enc_set_state enc_nth.
 
 Lemma enc_init_spec {k n} (P : list (mm_instr (Fin.t (1 + k + n)))) (v : Vector.t nat k) :
   clos_refl_trans _ step
     (Vector.fold_left (fun (s : term) c => app s (nat_enc c))
-      (lams k (apps (enc_run P) [pi P (addr P 1); enc_set_state; enc_run P; enc_nth (@Fin.F1 (k + n))])) v)
+      (lams k (apps (enc_run P) [pi P (addr P 1); enc_set_state k n; enc_run P; enc_nth (@Fin.F1 (k + n))])) v)
     (apps (enc_run P) [pi P (addr P 1); enc_regs (Vector.append (Vector.cons nat 0 k v) (Vector.const 0 n)); enc_run P; enc_nth (@Fin.F1 (k + n))]).
 Proof.
   rewrite Vector.to_list_fold_left.
@@ -1348,11 +1273,10 @@ Proof.
     - apply /Forall_map /Forall_forall=> *. by apply: eval_nat_enc.
     - apply /Forall_map /Forall_forall=> *. by apply: nat_enc_closed. }
   rewrite substs_apps /=.
-  rewrite !substs_closed; [by auto using enc_run_closed, pi_addr_closed, enc_set_state_closed, enc_nth_closed..|].
-  have ? : clos_refl_trans _ step enc_set_state (enc_regs (Vector.append (Vector.cons nat 0 k v) (Vector.const 0 n))).
-  { destruct FF. }
   apply: rt_trans.
-  { do 2 apply: rt_steps_app_r. apply: rt_steps_app_l. by eassumption. }
+  { do 2 apply: rt_steps_app_r. apply: rt_steps_app_l.
+    by apply: substs_enc_set_state. }
+  rewrite !substs_closed; [by auto using enc_run_closed, pi_addr_closed, enc_nth_closed..|].
   by apply: rt_refl.
 Qed.
 
@@ -1390,11 +1314,11 @@ Proof.
   unfold MMA_computable, L_computable_closed.
   move=> [n [P HP]].
   (* \c1...\ck. run pi_1 ((0...0) (set 1 c1) .. (set k ck)) run (\c'1...\c'n.c'1) *)
-  exists (lams k (apps (enc_run P) [pi P (addr P 1); enc_set_state; enc_run P; enc_nth (@Fin.F1 (k + n))])).
+  exists (lams k (apps (enc_run P) [pi P (addr P 1); enc_set_state k n; enc_run P; enc_nth (@Fin.F1 (k + n))])).
   split.
   - intros u ?.
-    rewrite subst_lams subst_apps !map_cons.
-    by rewrite !closed_enc_run pi_addr_closed enc_set_state_closed enc_nth_closed.
+    rewrite subst_lams subst_apps !map_cons subst_enc_set_state.
+    by rewrite !closed_enc_run pi_addr_closed enc_nth_closed.
   - move=> v. split.
     + move=> m. rewrite HP. split.
       * intros [c [v' [H1 H2]]].
