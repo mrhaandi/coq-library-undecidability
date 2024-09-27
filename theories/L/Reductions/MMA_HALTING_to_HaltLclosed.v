@@ -900,6 +900,21 @@ Proof.
   done.
 Qed.
 
+Lemma enc_halt_spec cs : 
+  clos_refl_trans _ step
+  (apps enc_halt [enc_regs cs; enc_recurse; lam (lam (apps enc_step [var 1; var 0; enc_recurse]))])
+  (enc_regs cs).
+Proof.
+  rewrite /enc_halt /=.
+  apply: rt_trans.
+  { do 2 apply: rt_steps_app_r. by apply: eval_rt_steps_subst. }
+  apply: rt_trans.
+  { apply: rt_steps_app_r. rewrite /=. by apply: eval_rt_steps_subst. }
+  apply: rt_trans.
+  { rewrite /=. apply: eval_rt_steps_subst. by constructor. }
+  autorewrite with subst. by apply: rt_refl.
+Qed.  
+
 Lemma eval_enc_halt : eval enc_halt enc_halt.
 Proof.
   by constructor.
@@ -927,12 +942,20 @@ Qed.
 
 Opaque Nat.sub.
 
-Lemma addr_spec {l instr r} :
+Lemma addr_spec_in_code {l instr r} :
   P = l ++ instr :: r ->
   addr (S (length l)) = S (length l).
 Proof.
   rewrite /addr=> ->. rewrite length_app /=.
   by have ->: S (length l) - (length l + S (length r)) = 0 by lia.
+Qed.
+
+Lemma addr_spec_out_code {i} : i < 1 \/ S (length P) <= i -> addr i = 0.
+Proof.
+  rewrite /addr => - [?|?].
+  - have ->: i = 0 by lia.
+    by case: (length P).
+  - by have ->: i - length P = S (i - length P - 1) by lia.
 Qed.
 
 Opaque addr.
@@ -964,7 +987,7 @@ Proof.
       + apply /Forall_rev /Forall_map /Forall_forall=> * ??. by autorewrite with subst.
       + constructor; by autorewrite with subst.
     - rewrite length_app length_rev length_map length_combine length_seq /=. lia.
-    - rewrite rev_app_distr rev_involutive (addr_spec HP) /=.
+    - rewrite rev_app_distr rev_involutive (addr_spec_in_code HP) /=.
       rewrite (map_nth' (0, MM.mm_inc Fin.F1)).
       { rewrite length_combine length_seq HP length_app /=. lia. }
       rewrite combine_nth; first by rewrite length_seq.
@@ -975,7 +998,25 @@ Proof.
   by apply: rt_refl.
 Qed.
 
-Print Assumptions enc_step_spec.
+Lemma enc_step_0_spec :
+  clos_refl_trans term step (app enc_step (pi 0)) enc_halt.
+Proof.
+  rewrite /enc_step.
+  apply: rt_trans.
+  { by apply: eval_rt_steps_subst. }
+  apply: rt_trans.
+  { rewrite /= subst_apps map_app map_rev map_subst_map_enc_instr /=.
+    apply: eval_rt. apply: apps_pi_spec.
+    - apply /Forall_app. split.
+      + by apply /Forall_rev /Forall_map /Forall_forall=> *.
+      + constructor; by autorewrite with subst.
+    - apply /Forall_app. split.
+      + apply /Forall_rev /Forall_map /Forall_forall=> * ??. by autorewrite with subst.
+      + constructor; by autorewrite with subst.
+    - rewrite length_app length_rev length_map length_combine length_seq /=. lia.
+    - by rewrite rev_app_distr rev_involutive /=. }
+  by apply: rt_refl.
+Qed.
 
 Opaque enc_step.
 
@@ -1010,8 +1051,6 @@ Opaque enc_recurse.
 
 #[local] Hint Rewrite subst_apps : subst.
 
-
-
 Lemma t_steps_enc_run_enc_step i cs :
   clos_trans term step
     (apps enc_run [pi (addr i); enc_regs cs])
@@ -1044,11 +1083,26 @@ Proof.
   by apply: enc_recurse_spec.
 Qed.
 
-Print Assumptions enc_run_spec.
-
 Lemma enc_halt_spec (p : mm_state N) : fst p < 1 \/ S (length P) <= fst p ->
-  ARS.star L_facts.step (apps enc_run [pi (addr (fst p)); enc_regs (snd p); enc_run]) (enc_regs (snd p)).
+  clos_refl_trans _ step (apps enc_run [pi (addr (fst p)); enc_regs (snd p); enc_run]) (enc_regs (snd p)).
 Proof.
+  move=> Hp. rewrite /enc_run.
+  apply: rt_trans.
+  { apply: rt_steps_app_r. apply: rt_steps_app_r. by apply: eval_rt_steps_subst. }
+  apply: rt_trans.
+  { apply: rt_steps_app_r. rewrite /=. by apply: eval_rt_steps_subst. }
+  apply: rt_trans.
+  { apply: rt_steps_app_r. rewrite /=. autorewrite with subst.
+    rewrite (addr_spec_out_code Hp). do 2 apply: rt_steps_app_r. by apply: enc_step_0_spec. }
+
+  apply: rt_trans.
+  { do 2 apply: rt_steps_app_r. rewrite /enc_halt. by apply: eval_rt_steps_subst. }
+  apply: rt_trans.
+  
+  
+   by apply: eval_rt_steps_subst. }
+  
+  
 Admitted.
 
 Lemma enc_run_spec' {i v t} : eval (apps enc_run [pi (addr i); enc_regs v; enc_run]) t ->
@@ -1084,7 +1138,13 @@ Lemma stuck_sss_step_transport p s :
   stuck (sss_step (@mma_sss N) (1, P)) p ->
   sync p s -> terminates step s.
 Proof.
-Admitted.
+  move=> /MMA_computable_to_MMA_mon_computable.out_code_iff Hp ->.
+  exists (enc_regs (snd p)). split.
+  - by apply: enc_halt_spec.
+  - move=> t. intros H. by inversion H.
+Qed.
+
+Print Assumptions stuck_sss_step_transport.
 
 Lemma sss_step_dec p :
   (exists q, sss_step (@mma_sss N) (1, P) p q) \/ stuck (sss_step (@mma_sss N) (1, P)) p.
@@ -1138,8 +1198,6 @@ Lemma closed_rt_step {s t} :
 Proof.
   elim; by eauto using closed_step.
 Qed.
-
-
 
 Lemma closed_stuck_lambda t :
   closed t ->
