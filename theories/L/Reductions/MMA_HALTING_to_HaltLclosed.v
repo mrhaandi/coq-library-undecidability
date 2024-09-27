@@ -354,10 +354,14 @@ Proof.
   move=> n IH u k /=. by rewrite IH.
 Qed.
 
+#[local] Hint Rewrite nat_enc_closed : subst.
+
 Lemma eval_nat_enc n : eval (nat_enc n) (nat_enc n).
 Proof.
   by case: n; constructor.
 Qed.
+
+#[local] Hint Resolve eval_nat_enc : core.
 
 Lemma nth_order_map : forall (X Y : Type) (f : X -> Y) (n : nat) (v : Vector.t X n) (i : nat) (H : i < n),
   Vector.nth_order (Vector.map f v) H = f (Vector.nth_order v H).
@@ -423,6 +427,8 @@ Proof.
   rewrite (@nth_order_nth _ _ _ (Fin.of_nat_lt Hn)) ?Fin.to_nat_of_nat /=; first lia.
   by apply: eval_nat_enc.
 Qed.
+
+#[local] Hint Resolve enc_nth_spec : core.
 
 Check vec.vec_change.
 
@@ -586,6 +592,25 @@ Proof.
     by constructor.
 Qed.
 
+Lemma star_rt_steps_iff s t : ARS.star step s t <-> clos_refl_trans term step s t.
+Proof.
+  split.
+  - elim=> *.
+    + by apply: rt_refl.
+    + by apply: rt_trans; [apply: rt_step|]; eassumption.
+  - move=> /clos_rt_rt1n_iff. elim=> *.
+    + by apply: ARS.starR.
+    + apply: ARS.starC; by eassumption.
+Qed.
+
+Lemma eval_rt_steps_subst s t1 t2 : eval t1 t2 -> clos_refl_trans _ step (app (lam s) t1) (subst s 0 t2).
+Proof.
+  move=> /L_facts.eval_iff [/star_rt_steps_iff ?] [?] ?. subst.
+  apply: rt_trans.
+  - apply: rt_steps_app_l. by eassumption.
+  - apply: rt_step. by constructor.
+Qed.
+
 Lemma enc_replace_spec x v c t :
   eval t (nat_enc c) ->
   eval (app (enc_regs v) (app (enc_replace x) t)) (enc_regs (Vector.replace v x c)).
@@ -619,6 +644,8 @@ Proof.
       move=> ?. rewrite nth_order_map. congr nat_enc.
       apply: nth_order_nth. rewrite Ei /=. lia.
 Qed.
+
+#[local] Hint Resolve enc_replace_spec : core.
 
 Print Assumptions enc_replace_spec.
 
@@ -693,9 +720,10 @@ Definition enc_instr '(i, instr) : term :=
       (* \cs.(\cs'.\f.f (pi (S i)) cs') (inc x cs) *)
       lam (app (lam (lam (apps (var 0) [pi (addr (S i)); var 1]))) (app (enc_inc x) (var 0)))
   | MM.mm_dec x j =>
-      (* \cs.cs (\c1..cN.cx (\f. f (pi (S i)) cs) (\c.\f. f (pi j) (replace x cs c))) *)
-  
-  var 0
+      (* \cs.(nth x cs) (\f. f (pi (S i)) cs) (\c.(\c'.\f. f (pi j) c') (replace x cs c)) *)
+      lam (apps (var 0) [enc_nth x;
+        lam (apps (var 0) [pi (addr (S i)); var 1]);
+        lam (app (lam (lam (apps (var 0) [pi (addr j); var 1]))) (app (var 1) (app (enc_replace x) (var 0))))])
   end.
 
 Lemma enc_instr_closed o : closed (enc_instr o).
@@ -748,16 +776,7 @@ Qed.
 
 Opaque enc_pair pi_succ pi enc_regs.
 
-Lemma star_rt_steps_iff s t : ARS.star step s t <-> clos_refl_trans term step s t.
-Proof.
-  split.
-  - elim=> *.
-    + by apply: rt_refl.
-    + by apply: rt_trans; [apply: rt_step|]; eassumption.
-  - move=> /clos_rt_rt1n_iff. elim=> *.
-    + by apply: ARS.starR.
-    + apply: ARS.starC; by eassumption.
-Qed.
+
 
 Lemma eval_rt s t : eval s t -> clos_refl_trans term step s t.
 Proof.
@@ -784,6 +803,13 @@ Qed.
 
 Axiom FF : False.
 
+Search clos_refl_trans.
+
+Lemma step_rt_steps s t u : step s t -> clos_refl_trans _ step t u -> clos_refl_trans _ step s u.
+Proof.
+  move=> ??. by apply: rt_trans; [apply: rt_step|]; eassumption.
+Qed.
+
 Lemma mma_step_sim (instr : mm_instr (Fin.t N)) (p q : mm_state N) :
   mma_sss instr p q ->
   clos_refl_trans _ step
@@ -794,19 +820,50 @@ Proof.
   - (* INC *)
     move=> i x v /=. rewrite vec_change_replace vec_pos_nth.
     apply: rt_trans.
-    { apply: rt_steps_app_r. apply: rt_step. by apply: step_app'. }
+    { apply: rt_steps_app_r. by apply: eval_rt_steps_subst. }
     apply: rt_trans.
     { apply: rt_steps_app_r. rewrite /=. apply: rt_steps_app_l.
       autorewrite with subst. apply: eval_rt. by apply: enc_inc_spec. }
     apply: rt_trans.
-    { apply: rt_steps_app_r. autorewrite with subst. apply: rt_step. by apply: step_app'. }
+    { apply: rt_steps_app_r. autorewrite with subst. by apply: eval_rt_steps_subst. }
     apply: rt_trans.
-    { rewrite /=. apply: rt_step. by apply: step_app'. }
+    { rewrite /=. by apply: eval_rt_steps_subst. }
     rewrite /=. autorewrite with subst. by apply: rt_refl.
   - (* DEC *)
-    destruct FF.
+    move=> i x j v. rewrite vec_pos_nth /==> Hx.
+    apply: rt_trans.
+    { apply: rt_steps_app_r.
+      apply: rt_trans.
+      { by apply: eval_rt_steps_subst. }
+      apply: rt_trans.
+      { rewrite /=. autorewrite with subst. do 2 apply: rt_steps_app_r. by apply: eval_rt. }
+      rewrite Hx /=. apply: rt_trans.
+      { apply: rt_steps_app_r. apply: rt_step. by constructor. }
+      apply: rt_step. rewrite /=. by constructor. }
+    apply: rt_trans.
+    { rewrite /=. autorewrite with subst. by apply: eval_rt_steps_subst. }
+    rewrite /=. autorewrite with subst. by apply: rt_refl.
   - (* JUMP *)
-    destruct FF.
+    move=> i x j v c. rewrite vec_pos_nth vec_change_replace /==> Hx.
+    apply: rt_trans.
+    { apply: rt_steps_app_r.
+      apply: rt_trans.
+      { by apply: eval_rt_steps_subst. }
+      apply: rt_trans.
+      { rewrite /=. autorewrite with subst. do 2 apply: rt_steps_app_r. by apply: eval_rt. }
+      rewrite Hx /=. apply: rt_trans.
+      { apply: rt_steps_app_r. apply: rt_step. by constructor. }
+      apply: rt_step. rewrite /=. by constructor. }
+    apply: rt_trans.
+    { rewrite /=. autorewrite with subst. apply: rt_steps_app_r. by apply: eval_rt_steps_subst. }
+    apply: rt_trans.
+    { rewrite /=. autorewrite with subst. apply: rt_steps_app_r. apply: rt_steps_app_l.
+      apply: eval_rt. by apply: enc_replace_spec. }
+    apply: rt_trans.
+    { apply: rt_steps_app_r. by apply: eval_rt_steps_subst. }
+    apply: rt_trans.
+    { rewrite /=. autorewrite with subst. by apply: eval_rt_steps_subst. }
+    rewrite /=. autorewrite with subst. by apply: rt_refl.
 Qed.
 
 Print Assumptions mma_step_sim.
