@@ -1297,14 +1297,14 @@ Proof.
 (* apps (enc_regs (Vector.const 0 (1 + k + n))) (Vector.to_list (Vector.map (fun x => enc_replace (Fin.L n (Fin.FS x))) (rev_vec_seq k)))*)
 Definition enc_set_state k n : term :=
   apps (enc_regs (Vector.const 0 (1 + k + n)))
-  (map (fun '(x, i) => app (enc_replace (Fin.L n (Fin.FS x))) (var i)) (combine (fin_seq k) (rev (seq 0 k)))).
+  (map (fun '(x, i) => app (enc_replace (Fin.FS (Fin.L n x))) (var i)) (combine (fin_seq k) (rev (seq 0 k)))).
 
 Opaque enc_replace Vector.to_list.
 
 Lemma substs_enc_set_state_aux k n (v : Vector.t nat k) :
   clos_refl_trans _ step
     (substs 0 (rev (map nat_enc (VectorDef.to_list v))) (enc_set_state k n))
-    (enc_regs (fold_left (fun w '(x, c) => Vector.replace w (Fin.L n (Fin.FS x)) c) (combine (fin_seq k) (Vector.to_list v)) (Vector.const 0 (1 + k + n)))).
+    (enc_regs (fold_left (fun w '(x, c) => Vector.replace w (Fin.FS (Fin.L n x)) c) (combine (fin_seq k) (Vector.to_list v)) (Vector.const 0 (1 + k + n)))).
 Proof.
   rewrite /enc_set_state.
   move: (Vector.const 0 (1 + k + n))=> cs.
@@ -1357,31 +1357,50 @@ Lemma substs_enc_set_state k n v :
 Proof.
   have := substs_enc_set_state_aux k n v.
   congr clos_refl_trans. congr enc_regs.
-
-(*
-  elim: v; first done.
-
-  move=> c {}k v /(vec_eq_nth (1 + k + n)) IH.
-  apply /(vec_eq_nth (1 + S k + n))=> x.
-  pattern x. apply: Fin.case_L_R'=> {}x.
-  - rewrite Vector.nth_append_L.
-    admit.
-  - 
-    move: (IH (Fin.R (1 + k) x)).
-    rewrite !Vector.nth_append_R.
-    move <-.
-  Search Vector.append.
-
-  Vector.eq_nth_iff
-  
-   rewrite [RHS]/= in IH. rewrite [RHS]/=.
-  - done.
-  rewrite /=.
-  apply /Vector.eq_nth_iff. => i ?.
-
-  rewrite /enc_set_state substs_apps substs_closed; first by apply: enc_regs_closed.
-*)
-Admitted.
+  rewrite [RHS](@Vector.eta _ (k + n)).
+  rewrite [LHS](@Vector.eta _ (k + n)).
+  congr (@Vector.cons _ _ (k + n)); rewrite /=.
+  - elim: (fin_seq k) (Vector.to_list v) (Vector.const 0 (k + n)); first done.
+    move=> ?? IH [|??] ? /=; first done.
+    by apply: IH.
+  - apply /(vec_eq_nth (k + n))=> x.
+    pattern x. apply: Fin.case_L_R'=> {}x.
+    + rewrite Vector.nth_append_L.
+      have : forall x c, In (x, c) (combine (fin_seq k) (Vector.to_list v)) -> Vector.nth v x = c.
+      { elim: v; first done.
+        move=> > IH {}x c /=. rewrite Vector.to_list_cons /=.
+        move=> [[??]|]; first by subst.
+        rewrite combine_map_l.
+        move=> /in_map_iff [[??]] [[??]] /IH ?.
+        by subst. }
+      have : In (x, Vector.nth v x) (combine (fin_seq k) (Vector.to_list v)).
+      { elim: v x; first by apply: Fin.case0.
+        move=> > IH x.
+        pattern x. apply: Fin.caseS'; first by left.
+        move=> {}x. rewrite Vector.to_list_cons /=. right.
+        rewrite combine_map_l. apply /in_map_iff. by eexists (_, _). }
+      rewrite -Vector.append_const.
+      move: (VectorDef.const 0 k).
+      elim /rev_ind: (combine (fin_seq k) (Vector.to_list v)); first done.
+      move=> [y j] ? IH ? /in_app_iff [/IH {}IH|].
+      * move=> H. rewrite fold_left_app /=.
+        rewrite [fold_left _ _ _](@Vector.eta _ (k + n)) /=.
+        have [?|?] := Fin.eq_dec x y.
+        { subst. rewrite Vector.nth_replace_eq.
+          rewrite (H y j); last done.
+          apply /in_app_iff. right. by left. }
+        rewrite Vector.nth_replace_neq; first by move=> /Fin.L_inj.
+        apply: IH=> *. apply: H. apply /in_app_iff. by left.
+      * move=> /= [|]; last done.
+        move=> [??] H. subst. rewrite fold_left_app /=.
+        rewrite [fold_left _ _ _](@Vector.eta _ (k + n)) /=.
+        by rewrite Vector.nth_replace_eq.
+    + rewrite Vector.nth_append_R Vector.const_nth -Vector.append_const.
+      elim: (fin_seq k) (Vector.to_list v) (VectorDef.const 0 k).
+      * move=> /= *. by rewrite Vector.nth_append_R Vector.const_nth.
+      * move=> ?? IH [|??] ? /=; first by rewrite Vector.nth_append_R Vector.const_nth.
+        by rewrite Vector.replace_append_L IH.
+Qed.
 
 Lemma subst_enc_set_state k n m u : subst (enc_set_state k n) (k + m) u = enc_set_state k n.
 Proof.
