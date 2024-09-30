@@ -18,7 +18,8 @@ From Undecidability Require Import
   MuRec_computable_to_L_computable
   L_computable_to_TM_computable
   L_computable_to_MMA_computable
-  MMA_computable_to_TM_computable.
+  MMA_computable_to_TM_computable
+  MMA_computable_to_L_computable_closed.
 
 Theorem equivalence {k} (R : Vector.t nat k -> nat -> Prop) :
   (TM_computable R -> BSM_computable R) /\
@@ -28,7 +29,8 @@ Theorem equivalence {k} (R : Vector.t nat k -> nat -> Prop) :
   (Diophantine' R /\ functional R -> MuRec_computable R) /\
   (MuRec_computable R -> L_computable R) /\
   (L_computable R -> MMA_computable R) /\
-  (MMA_computable R -> TM_computable R).
+  (MMA_computable R -> TM_computable R) /\
+  (MMA_computable R -> L_computable_closed R).
 Proof.
   repeat split.
   - apply TM_computable_to_BSM_computable.
@@ -40,4 +42,5 @@ Proof.
   - apply MuRec_computable_to_L_computable.
   - apply L_computable_to_MMA_computable.
   - apply MMA_computable_to_TM_computable.
+  - apply MMA_computable_to_L_computable_closed.
 Qed.
