@@ -330,6 +330,7 @@ MinskyMachines/ndMM2_undec.v
 MinskyMachines/Util/MM_sss.v
 MinskyMachines/Util/MM_computable.v
 MinskyMachines/Util/MM2_facts.v
+MinskyMachines/Util/MMA_facts.v
 MinskyMachines/Util/MMA_pairing.v
 MinskyMachines/Util/MMA_computable.v
 
@@ -353,6 +354,7 @@ MinskyMachines/Reductions/MM2_HALTING_to_MM2_ZERO_HALTING.v
 MinskyMachines/Reductions/L_computable_closed_to_MMA_computable.v
 MinskyMachines/Reductions/L_computable_to_MMA_computable.v
 MinskyMachines/Reductions/MMA_computable_to_MMA_mon_computable.v
+
 
 MinskyMachines/Deciders/MPM2_HALT_dec.v
 MinskyMachines/Deciders/MM_2_HALTING_dec.v
@@ -575,6 +577,7 @@ L/Reductions/MuRec/MuRec_extract.v
 L/Reductions/HaltMuRec_to_HaltL.v
 L/Reductions/HaltL_to_HaltLclosed.v
 L/Reductions/MuRec_computable_to_L_computable.v
+L/Reductions/MMA_HALTING_to_HaltLclosed.v
 
 L/AbstractMachines/wCBV.v
 
@@ -842,7 +845,5 @@ LambdaCalculus/Util/facts.v
 LambdaCalculus/Util/stlc_facts.v
 LambdaCalculus/Util/confluence.v
 LambdaCalculus/Reductions/SSTS01_to_HOMbeta.v
-
-L/Reductions/MMA_HALTING_to_HaltLclosed.v
 
 Synthetic/Models_Equivalent.v

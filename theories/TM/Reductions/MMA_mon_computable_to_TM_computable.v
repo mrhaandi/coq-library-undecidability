@@ -15,7 +15,7 @@ From Undecidability.TM Require Import TM.
 From Undecidability.TM Require Util.TM_facts Util.TM_computable.
 
 From Undecidability.MinskyMachines Require Import
-  MM MMA.mma_defs Reductions.MMA_computable_to_MMA_mon_computable.
+  MM MMA.mma_defs Util.MMA_facts Reductions.MMA_computable_to_MMA_mon_computable.
 
 From Undecidability.Shared.Libs.DLW
   Require Import Vec.pos Vec.vec Code.sss Code.subcode.
