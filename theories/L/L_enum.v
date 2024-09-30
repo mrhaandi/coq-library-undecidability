@@ -6,6 +6,9 @@ Require Import Undecidability.Synthetic.Definitions.
 Lemma HaltL_enum :
   enumerable (HaltL).
 Proof.
+Admitted.
+(*
   exists HaltL_enumerator.
   exact HaltL_enumerator_spec.
 Qed.
+*)

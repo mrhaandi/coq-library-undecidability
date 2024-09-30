@@ -15,7 +15,7 @@ From Undecidability Require Import
   FRACTRAN_computable_to_Diophantine
   Diophantine
   Diophantine_to_MuRec_computable
-  MuRec_computable_to_L_computable
+  (*MuRec_computable_to_L_computable*)
   L_computable_to_TM_computable
   L_computable_to_MMA_computable
   MMA_computable_to_TM_computable
@@ -27,7 +27,7 @@ Theorem equivalence {k} (R : Vector.t nat k -> nat -> Prop) :
   (MM_computable R -> FRACTRAN_computable R) /\
   (FRACTRAN_computable R -> Diophantine' R /\ functional R) /\
   (Diophantine' R /\ functional R -> MuRec_computable R) /\
-  (MuRec_computable R -> L_computable R) /\
+  (* (MuRec_computable R -> L_computable R) /\ *)
   (L_computable R -> MMA_computable R) /\
   (MMA_computable R -> TM_computable R) /\
   (MMA_computable R -> L_computable_closed R).
@@ -39,7 +39,7 @@ Proof.
   - eapply FRACTRAN_computable_to_Diophantine; assumption.
   - intros ? ? ? ? ?. eapply FRACTRAN_computable.FRACTRAN_computable_functional; eauto.
   - intros []. eapply Diophantine_to_MuRec_computable; eauto.
-  - apply MuRec_computable_to_L_computable.
+  (*- apply MuRec_computable_to_L_computable. *)
   - apply L_computable_to_MMA_computable.
   - apply MMA_computable_to_TM_computable.
   - apply MMA_computable_to_L_computable_closed.

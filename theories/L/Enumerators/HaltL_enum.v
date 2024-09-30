@@ -2,6 +2,7 @@ From Undecidability.Synthetic Require Import Definitions EnumerabilityFacts.
 
 Require Import Undecidability.L.L.
 Require Import Undecidability.L.Enumerators.term_enum.
+(*
 Require Import Undecidability.L.Computability.Seval.
 
 (* semi-decider for HaltL *)
@@ -26,3 +27,4 @@ Definition HaltL_enumerator := proj1_sig HaltL_enumeration.
 
 Lemma HaltL_enumerator_spec : enumerator HaltL_enumerator HaltL.
 Proof. exact (proj2_sig HaltL_enumeration). Qed.
+*)

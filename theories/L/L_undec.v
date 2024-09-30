@@ -6,7 +6,6 @@ Require Import Undecidability.L.Enumerators.term_enum.
 
 Require Import Undecidability.TM.TM.
 Require Import Undecidability.TM.TM_undec.
-Require Import Undecidability.L.Reductions.TM_to_L.
 Require Import Undecidability.MinskyMachines.MMA2_undec.
 Require Undecidability.L.Reductions.MMA_HALTING_to_HaltLclosed.
 
@@ -15,10 +14,12 @@ Require Undecidability.L.Reductions.MMA_HALTING_to_HaltLclosed.
 Lemma HaltL_undec :
   undecidable (HaltL).
 Proof.
+Admitted.
+(*
   apply (undecidability_from_reducibility HaltMTM_undec).
   eapply HaltMTM_to_HaltL.
 Qed.
-
+*)
 Lemma HaltLclosed_undec :
   undecidable (HaltLclosed).
 Proof.

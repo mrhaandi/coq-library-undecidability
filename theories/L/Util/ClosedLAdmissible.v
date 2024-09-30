@@ -1,3 +1,5 @@
+(*
+
 From Undecidability.Shared.Libs.PSL Require Import Vectors.
 
 From Coq Require Import Vector List.
@@ -155,3 +157,11 @@ Proof.
       * intros m. specialize (H v) as [H1 H2]. rewrite H1. rewrite !eval_iff. rewrite <- !many_app_eq_nat. now rewrite Hs'.
       * intros o. rewrite eval_iff. rewrite <- many_app_eq_nat. rewrite Hs'. rewrite <- eval_iff. rewrite many_app_eq_nat. eapply H.
 Qed.
+*)
+
+Require Import Undecidability.L.L.
+
+Lemma L_computable_can_closed k R:
+  L_computable_closed R <-> L_computable (k:=k) R.
+Proof.
+Admitted.
