@@ -523,6 +523,7 @@ L/Enumerators/term_enum.v
 L/Prelim/ARS.v
 
 L/Util/L_facts.v
+L/Util/term_facts.v
 
 L/Tactics/Computable.v
 
