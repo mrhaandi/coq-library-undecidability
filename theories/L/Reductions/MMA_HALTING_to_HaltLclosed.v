@@ -109,14 +109,6 @@ Lemma clos_trans_flip {X : Type} {R : X -> X -> Prop} {x y} : clos_trans _ R x y
   clos_trans _ (fun y x => R x y) y x.
 Proof. by elim; eauto using clos_trans. Qed.
 
-Lemma vec_eq_nth {A : Type} (n : nat) (v1 v2 : VectorDef.t A n) :
-  (forall p : Fin.t n, Vector.nth v1 p = Vector.nth v2 p) <-> v1 = v2.
-Proof.
-  split.
-  - move=> ?. apply /Vector.eq_nth_iff. by move=> i ? <-.
-  - move=> /Vector.eq_nth_iff H *. by apply: H.
-Qed.
-
 (* L facts *)
 
 #[local] Notation lams k M := (Nat.iter k lam M).
@@ -128,19 +120,6 @@ Proof.
   move=> t' ts IH t /=. by rewrite IH.
 Qed.
 
-Lemma not_eval_var_r s i : eval s (var i) -> False.
-Proof.
-  move E: (var i) => t H.
-  elim: H i E; first done.
-  move=> > ? _ ??? H ??. subst.
-  by apply: H.
-Qed.
-
-Lemma not_eval_var_l t i : eval (var i) t -> False.
-Proof.
-  move=> H. inversion H.
-Qed.
-
 Lemma star_rt_steps_iff s t : ARS.star step s t <-> clos_refl_trans term step s t.
 Proof.
   split.
@@ -150,11 +129,6 @@ Proof.
   - move=> /clos_rt_rt1n_iff. elim=> *.
     + by apply: ARS.starR.
     + apply: ARS.starC; by eassumption.
-Qed.
-
-Lemma eval_reflE t : eval t t -> exists s, t = lam s.
-Proof.
-  by move=> /L_facts.eval_iff [_].
 Qed.
 
 Lemma subst_lams n s k t : subst (lams n s) k t = lams n (subst s (n + k) t).
@@ -194,12 +168,6 @@ Proof.
   - move=> ? IH ? /=. by rewrite IH.
 Qed.
 
-Lemma substs_lams n s k ts : substs k ts (lams n s) = lams n (substs (n + k) ts s).
-Proof.
-  elim: n k; first done.
-  move=> n IH k /=. by rewrite IH Nat.add_succ_r.
-Qed.
-
 Lemma substs_closed k ts t : closed t -> substs k ts t = t.
 Proof.
   move=> /L_facts.closed_dcl.
@@ -233,12 +201,13 @@ Proof.
   - move=> ? IH ? /=. by rewrite IH.
 Qed.
 
-Lemma steps_apps_lams (ts : list term) s :
+Lemma steps_apps_lams n (ts : list term) s :
+  n = length ts ->
   Forall (fun t' => eval t' t') ts ->
   Forall closed ts ->
-  ARS.star step (apps (lams (length ts) s) ts) (substs 0 (rev ts) s).
+  ARS.star step (apps (lams n s) ts) (substs 0 (rev ts) s).
 Proof.
-  move=> H. elim: H s.
+  move=> -> H. elim: H s.
   - move=> ? /= *. rewrite substs_nil. by apply ARS.starR.
   - move=> t' {}ts H1t' Hts IH s /Forall_cons_iff [H2t'] /[dup] ? /IH {}IH.
     move: H1t' => /L_facts.eval_iff [_] [t'' ?]. subst.
@@ -254,15 +223,6 @@ Proof.
       by apply ARS.starR.
 Qed.
 
-Lemma steps_apps_lams' n (ts : list term) s :
-  n = length ts ->
-  Forall (fun t' => eval t' t') ts ->
-  Forall closed ts ->
-  ARS.star step (apps (lams n s) ts) (substs 0 (rev ts) s).
-Proof.
-  move=> ->. by apply: steps_apps_lams.
-Qed.
-
 Lemma steps_eval t1 t2 t3 : ARS.star step t1 t2 -> eval t2 t3 -> eval t1 t3.
 Proof.
   move=> H /L_facts.eval_iff [H1 H2].
@@ -270,37 +230,18 @@ Proof.
   apply: ARS.star_trans; by eassumption.
 Qed.
 
-Lemma eval_apps_lams (ts : list term) s t :
-  Forall (fun t' => eval t' t') ts ->
-  Forall closed ts ->
-  eval (substs 0 (rev ts) s) t ->
-  eval (apps (lams (length ts) s) ts) t.
-Proof.
-  move=> /steps_apps_lams /[apply] H.
-  apply: steps_eval. by apply: H.
-Qed.
-
-Lemma eval_apps_lams' n (ts : list term) s t :
+Lemma eval_apps_lams n (ts : list term) s t :
   n = length ts ->
   Forall (fun t' => eval t' t') ts ->
   Forall closed ts ->
   eval (substs 0 (rev ts) s) t ->
   eval (apps (lams n s) ts) t.
 Proof.
-  move=> ->. by apply: eval_apps_lams.
+  move=> /steps_apps_lams /[apply] /[apply] H.
+  apply: steps_eval. by apply: H.
 Qed.
 
-Lemma subst_app k s t u : subst (app s t) k u = app (subst s k u) (subst t k u).
-Proof.
-  done.
-Qed.
-
-Lemma subst_lam s k t : subst (lam s) k t = lam (subst s (S k) t).
-Proof.
-  done.
-Qed.
-
-Lemma eval_lam' s t : lam s = t -> eval (lam s) t.
+Lemma eval_lam s t : lam s = t -> eval (lam s) t.
 Proof.
   move=> <-. by constructor.
 Qed.
@@ -335,18 +276,17 @@ Proof.
   - move=> *. apply: rt_trans; by eassumption.
 Qed.
 
+Lemma rt_steps_apps_r s ts t :
+  clos_refl_trans _ step s t -> clos_refl_trans _ step (apps s ts) (apps t ts).
+Proof.
+  elim: ts s t; first done.
+  move=> ?? IH ??? /=. apply: IH.
+  by apply: rt_steps_app_r.
+Qed.
+
 Lemma step_app' s t : eval t t -> step (app (lam s) t) (subst s 0 t).
 Proof.
   move=> /L_facts.eval_iff [_] [?] ->. by constructor.
-Qed.
-
-Lemma steps_app' s t1 t2 : eval t1 t2 -> ARS.star step (app (lam s) t1) (subst s 0 t2).
-Proof.
-  move=> /L_facts.eval_iff [?] [?] ?. subst.
-  apply: ARS.star_trans.
-  - apply: L_facts.star_trans_r. by eassumption.
-  - apply: ARS.starC; last by apply: ARS.starR.
-    by constructor.
 Qed.
 
 Lemma eval_rt_steps_subst s t1 t2 : eval t1 t2 -> clos_refl_trans _ step (app (lam s) t1) (subst s 0 t2).
@@ -357,25 +297,10 @@ Proof.
   - apply: rt_step. by constructor.
 Qed.
 
-Lemma subst_var_eq x s : subst (var x) x s = s.
-Proof.
-  by rewrite /= Nat.eqb_refl.
-Qed.
-
-Lemma subst_var_neq x y s : x <> y -> subst (var x) y s = var x.
-Proof.
-  by move=> /= /Nat.eqb_neq ->.
-Qed.
-
-Lemma eval_rt s t : eval s t -> clos_refl_trans term step s t.
+Lemma eval_rt_steps s t : eval s t -> clos_refl_trans term step s t.
 Proof.
   move=> /L_facts.eval_iff [?] [?] ?. subst.
   by apply /star_rt_steps_iff.
-Qed.
-
-Lemma step_rt_steps s t u : step s t -> clos_refl_trans _ step t u -> clos_refl_trans _ step s u.
-Proof.
-  move=> ??. by apply: rt_trans; [apply: rt_step|]; eassumption.
 Qed.
 
 Lemma eval_rt_steps_eval s t u : eval s t -> clos_refl_trans _ step s u -> eval u t.
@@ -392,37 +317,12 @@ Proof.
   - by eexists.
 Qed.
 
-Lemma closed_app s t : closed (app s t) -> closed s /\ closed t.
-Proof.
-  move=> H. split=> k u; by move: (H k u)=> [].
-Qed.
-
-Lemma closed_rt_step {s t} :
-  clos_refl_trans term step s t ->
-  closed s ->
-  closed t.
+Lemma closed_rt_step {s t} : clos_refl_trans term step s t -> closed s -> closed t.
 Proof.
   elim; by eauto using L_facts.closed_step.
 Qed.
 
-Fixpoint term_size t : nat :=
-  match t with
-  | var _ => 1
-  | app s t => 1 + term_size s + term_size t
-  | lam s => 1 + term_size s
-  end.
-
-Lemma not_closed_var n : closed (var n) -> False.
-Proof.
-  move=> /(_ n (var (S n))) /=.
-  rewrite Nat.eqb_refl=> - []. lia.
-Qed.
-
-Lemma steps_stuck_eval s t :
-  closed s ->
-  clos_refl_trans term step s t ->
-  stuck step t ->
-  eval s t.
+Lemma steps_stuck_eval s t : closed s -> clos_refl_trans term step s t -> stuck step t -> eval s t.
 Proof.
   move=> /closed_rt_step Hs /[dup] /Hs H't Hst Ht.
   apply /L_facts.eval_iff. split.
@@ -430,25 +330,12 @@ Proof.
   - by move: H't => /L_facts.comb_proc_red [[]|[? /Ht]].
 Qed.
 
-Lemma stuck_lam s : stuck step (lam s).
-Proof.
-  move=> t H. by inversion H.
-Qed.
-
-Lemma eval_steps_stuck s t : eval s t -> terminates L_facts.step s.
+Lemma eval_steps_stuck s t : eval s t -> terminates step s.
 Proof.
   move=> /L_facts.eval_iff [?] [?] ?. subst.
   eexists. split.
   - apply /star_rt_steps_iff. by eassumption.
-  - by apply: stuck_lam.
-Qed.
-
-Lemma rt_steps_apps_r s ts t :
-  clos_refl_trans _ step s t -> clos_refl_trans _ step (apps s ts) (apps t ts).
-Proof.
-  elim: ts s t; first done.
-  move=> ?? IH ??? /=. apply: IH.
-  by apply: rt_steps_app_r.
+  - move=> ? H. by inversion H.
 Qed.
 
 Section MMA_HALTING_to_HaltLclosed.
@@ -576,7 +463,7 @@ Lemma enc_regs_spec v s t :
   eval (app (enc_regs v) (lams N s)) t.
 Proof.
   move=> H. econstructor; [constructor|done|].
-  rewrite subst_apps /=. apply: eval_apps_lams'.
+  rewrite subst_apps /=. apply: eval_apps_lams.
   - by rewrite length_map Vector.length_to_list.
   - apply /Forall_map. apply /Vector.to_list_Forall.
     apply /Vector.Forall_map.
@@ -695,12 +582,13 @@ Lemma enc_replace_spec x v c t :
 Proof.
   move=> Hc.
   apply: steps_eval.
-  - apply: L_facts.star_trans_r.
-    apply: steps_app'.
+  - apply /star_rt_steps_iff.
+    apply: rt_steps_app_l.
+    apply: eval_rt_steps_subst.
     by eassumption.
   - rewrite subst_lams.
     apply: enc_regs_spec.
-    rewrite /= subst_apps substs_apps. apply: eval_lam'.
+    rewrite /= subst_apps substs_apps. apply: eval_lam.
     rewrite /=. congr lam. congr fold_left.
     rewrite !map_map.
     rewrite -!Vector.to_list_map.
@@ -827,7 +715,7 @@ Proof.
   { rewrite /= subst_apps /=. apply: rt_steps_app_r.
     autorewrite with subst.
     rewrite map_app map_rev map_subst_map_enc_instr /=.
-    apply: eval_rt. apply: apps_pi_spec.
+    apply: eval_rt_steps. apply: apps_pi_spec.
     - apply /Forall_app. split.
       + by apply /Forall_rev /Forall_map /Forall_forall=> *.
       + constructor; by autorewrite with subst.
@@ -854,7 +742,7 @@ Proof.
   { by apply: eval_rt_steps_subst. }
   apply: rt_trans.
   { rewrite /= subst_apps map_app map_rev map_subst_map_enc_instr /=.
-    apply: eval_rt. apply: apps_pi_spec.
+    apply: eval_rt_steps. apply: apps_pi_spec.
     - apply /Forall_app. split.
       + by apply /Forall_rev /Forall_map /Forall_forall=> *.
       + constructor; by autorewrite with subst.
@@ -882,7 +770,7 @@ Proof.
     { apply: rt_steps_app_r. by apply: eval_rt_steps_subst. }
     apply: rt_trans.
     { apply: rt_steps_app_r. rewrite /=. apply: rt_steps_app_l.
-      autorewrite with subst. apply: eval_rt.
+      autorewrite with subst. apply: eval_rt_steps.
       apply: enc_replace_spec. apply: nat_succ_spec. by apply: enc_nth_spec. }
     apply: rt_trans.
     { apply: rt_steps_app_r. autorewrite with subst. by apply: eval_rt_steps_subst. }
@@ -896,7 +784,7 @@ Proof.
       apply: rt_trans.
       { by apply: eval_rt_steps_subst. }
       apply: rt_trans.
-      { rewrite /=. autorewrite with subst. do 2 apply: rt_steps_app_r. by apply: eval_rt. }
+      { rewrite /=. autorewrite with subst. do 2 apply: rt_steps_app_r. by apply: eval_rt_steps. }
       rewrite Hx /=. apply: rt_trans.
       { apply: rt_steps_app_r. apply: rt_step. by constructor. }
       apply: rt_step. rewrite /=. by constructor. }
@@ -910,7 +798,7 @@ Proof.
       apply: rt_trans.
       { by apply: eval_rt_steps_subst. }
       apply: rt_trans.
-      { rewrite /=. autorewrite with subst. do 2 apply: rt_steps_app_r. by apply: eval_rt. }
+      { rewrite /=. autorewrite with subst. do 2 apply: rt_steps_app_r. by apply: eval_rt_steps. }
       rewrite Hx /=. apply: rt_trans.
       { apply: rt_steps_app_r. apply: rt_step. by constructor. }
       apply: rt_step. rewrite /=. by constructor. }
@@ -918,7 +806,7 @@ Proof.
     { rewrite /=. autorewrite with subst. apply: rt_steps_app_r. by apply: eval_rt_steps_subst. }
     apply: rt_trans.
     { rewrite /=. autorewrite with subst. apply: rt_steps_app_r. apply: rt_steps_app_l.
-      apply: eval_rt. by apply: enc_replace_spec. }
+      apply: eval_rt_steps. by apply: enc_replace_spec. }
     apply: rt_trans.
     { apply: rt_steps_app_r. by apply: eval_rt_steps_subst. }
     apply: rt_trans.
@@ -1089,12 +977,15 @@ Definition enc_set_state k n : term :=
 
 Opaque enc_replace Vector.to_list.
 
-Lemma substs_enc_set_state_aux k n (v : Vector.t nat k) :
+Lemma substs_enc_set_state k n (v : Vector.t nat k) :
   clos_refl_trans _ step
     (substs 0 (rev (map nat_enc (VectorDef.to_list v))) (enc_set_state k n))
-    (enc_regs (fold_left (fun w '(x, c) => Vector.replace w (Fin.FS (Fin.L n x)) c) (combine (fin_seq k) (Vector.to_list v)) (Vector.const 0 (1 + k + n)))).
+    (enc_regs (Vector.append (Vector.cons nat 0 k v) (Vector.const 0 n))) .
 Proof.
-  rewrite /enc_set_state.
+  have : clos_refl_trans _ step
+    (substs 0 (rev (map nat_enc (VectorDef.to_list v))) (enc_set_state k n))
+    (enc_regs (fold_left (fun w '(x, c) => Vector.replace w (Fin.FS (Fin.L n x)) c) (combine (fin_seq k) (Vector.to_list v)) (Vector.const 0 (1 + k + n)))).
+  { rewrite /enc_set_state.
   move: (Vector.const 0 (1 + k + n))=> cs.
   rewrite substs_apps substs_closed; first by apply: enc_regs_closed.
     have ->: forall xs, map (substs 0 (rev (map nat_enc (VectorDef.to_list v))))
@@ -1124,26 +1015,14 @@ Proof.
   - move=> x xs IH [|c' c's].
     + move=> *. by apply: rt_refl.
     + move=> cs /=. apply: rt_trans.
-      { apply: rt_steps_apps_r. apply: eval_rt. apply: enc_replace_spec. by apply: eval_nat_enc. }
-      by apply: IH.
-Qed.
-
-Print Assumptions substs_enc_set_state_aux.
-
-Lemma substs_enc_set_state k n v :
-  clos_refl_trans _ step
-    (substs 0 (rev (map nat_enc (VectorDef.to_list v))) (enc_set_state k n))
-    (enc_regs (Vector.append (Vector.cons nat 0 k v) (Vector.const 0 n))) .
-Proof.
-  have := substs_enc_set_state_aux k n v.
+      { apply: rt_steps_apps_r. apply: eval_rt_steps. apply: enc_replace_spec. by apply: eval_nat_enc. }
+      by apply: IH. }
   congr clos_refl_trans. congr enc_regs.
-  rewrite [RHS](@Vector.eta _ (k + n)).
-  rewrite [LHS](@Vector.eta _ (k + n)).
+  rewrite [RHS](@Vector.eta _ (k + n)) [LHS](@Vector.eta _ (k + n)).
   congr (@Vector.cons _ _ (k + n)); rewrite /=.
   - elim: (fin_seq k) (Vector.to_list v) (Vector.const 0 (k + n)); first done.
-    move=> ?? IH [|??] ? /=; first done.
-    by apply: IH.
-  - apply /(vec_eq_nth (k + n))=> x.
+    by move=> ?? IH [|??] ?; [|apply: IH].
+  - apply /Vector.eq_nth_iff=> x ? <-.
     pattern x. apply: Fin.case_L_R'=> {}x.
     + rewrite Vector.nth_append_L.
       have : forall x c, In (x, c) (combine (fin_seq k) (Vector.to_list v)) -> Vector.nth v x = c.
@@ -1151,8 +1030,7 @@ Proof.
         move=> > IH {}x c /=. rewrite Vector.to_list_cons /=.
         move=> [[??]|]; first by subst.
         rewrite combine_map_l.
-        move=> /in_map_iff [[??]] [[??]] /IH ?.
-        by subst. }
+        move=> /in_map_iff [[??]] [[??]] /IH ?. by subst. }
       have : In (x, Vector.nth v x) (combine (fin_seq k) (Vector.to_list v)).
       { elim: v x; first by apply: Fin.case0.
         move=> > IH x.
@@ -1162,19 +1040,17 @@ Proof.
       rewrite -Vector.append_const.
       move: (VectorDef.const 0 k).
       elim /rev_ind: (combine (fin_seq k) (Vector.to_list v)); first done.
-      move=> [y j] ? IH ? /in_app_iff [/IH {}IH|].
-      * move=> H. rewrite fold_left_app /=.
-        rewrite [fold_left _ _ _](@Vector.eta _ (k + n)) /=.
-        have [?|?] := Fin.eq_dec x y.
-        { subst. rewrite Vector.nth_replace_eq.
-          rewrite (H y j); last done.
-          apply /in_app_iff. right. by left. }
-        rewrite Vector.nth_replace_neq; first by move=> /Fin.L_inj.
-        apply: IH=> *. apply: H. apply /in_app_iff. by left.
-      * move=> /= [|]; last done.
-        move=> [??] H. subst. rewrite fold_left_app /=.
-        rewrite [fold_left _ _ _](@Vector.eta _ (k + n)) /=.
-        by rewrite Vector.nth_replace_eq.
+      move=> [y j] ? IH ? /in_app_iff H'.
+      move=> H. rewrite fold_left_app /=.
+      rewrite [fold_left _ _ _](@Vector.eta _ (k + n)) /=.
+      have [?|?] := Fin.eq_dec x y.
+      * subst. rewrite Vector.nth_replace_eq.
+        rewrite (H y j); last done.
+        apply /in_app_iff. right. by left.
+      * rewrite Vector.nth_replace_neq; first by move=> /Fin.L_inj.
+        apply: IH=> *.
+        ** by move: H' => [|[[/(@eq_sym (Fin.t k))]|]].
+        ** apply: H. apply /in_app_iff. by left.
     + rewrite Vector.nth_append_R Vector.const_nth -Vector.append_const.
       elim: (fin_seq k) (Vector.to_list v) (VectorDef.const 0 k).
       * move=> /= *. by rewrite Vector.nth_append_R Vector.const_nth.
@@ -1207,7 +1083,7 @@ Proof.
   { elim; first done.
     move=> > IH ? /=. by rewrite IH. }
   apply: rt_trans.
-  { apply /star_rt_steps_iff. apply: steps_apps_lams'.
+  { apply /star_rt_steps_iff. apply: steps_apps_lams.
     - by rewrite length_map Vector.length_to_list.
     - apply /Forall_map /Forall_forall=> *. by apply: eval_nat_enc.
     - apply /Forall_map /Forall_forall=> *. by apply: nat_enc_closed. }
@@ -1252,7 +1128,7 @@ Proof.
         { apply: rt_steps_app_r. by eassumption. }
         apply: rt_trans.
         { apply: rt_steps_app_r. by apply: enc_run_spec_out_code. }
-        apply: eval_rt. by apply: enc_nth_spec.
+        apply: eval_rt_steps. by apply: enc_nth_spec.
       * move=> /eval_rt_steps_eval => /(_ _ (enc_init_spec _ _)).
         move: (Vector.append _ _)=> {}v /[dup] /eval_steps_stuck H'.
         have /(@Acc_clos_trans term) := @terminating_Acc _ _ L_facts.uniform_confluence _ H'.
@@ -1307,5 +1183,3 @@ Proof.
         move=> /L_facts.eval_iff /L_facts.eval_unique + /L_facts.eval_iff => /[apply] <-.
         by eexists.
 Qed.
-
-Print Assumptions MMA_computable_to_L_computable_closed.
