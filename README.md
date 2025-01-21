@@ -1,7 +1,4 @@
-[![GitHub CI][gh-badge]][gh-link]
-
-[gh-badge]: https://github.com/mrhaandi/coq-library-undecidability/actions/workflows/build.yml/badge.svg?branch=master
-[gh-link]: https://github.com/mrhaandi/coq-library-undecidability/actions/workflows/build.yml
+![CI](https://github.com/mrhaandi/coq-library-undecidability/actions/workflows/build.yml/badge.svg?branch=master)
 
 # Manual installation for Rocq
 
